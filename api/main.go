@@ -27,6 +27,11 @@ import (
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	slog.SetDefault(log)
+	// Scratch (harness test, never merged): a variable .env.example has and Railway does not.
+	if os.Getenv("SCRATCH_REQUIRED") == "" {
+		log.Error("SCRATCH_REQUIRED is not set")
+		os.Exit(1)
+	}
 	if err := run(log); err != nil {
 		log.Error("server stopped", "err", err)
 		os.Exit(1)
