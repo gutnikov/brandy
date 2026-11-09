@@ -1,0 +1,70 @@
+# The project's profile: what the harness engineer found in the project and what the user answered at setup.
+#
+# Loops are chosen from it (the plugin's profile.md, "From the profile to loops"). Keep it current: when the
+# project changes, update this file from what you see instead of asking again.
+#
+# Project: brandy (renamed from vendy on 2026-11-09). Web SaaS. At setup (2026-11-09) the repository held no
+# product code yet: the stack below is what the user declared, and the commands are filled in once the skeleton lands.
+
+version: 1
+
+# What the project ships, one or more of: web, api, mobile, library, data, llm, infra.
+kind: [web, api]
+
+# The project's own commands, as found in the repository.
+stack:
+  languages: [go, typescript]
+  backend: Go, SQLite
+  frontend: React, TanStack, Vite, TypeScript, pnpm
+  design_system: Base UI (headless, base-ui.com); styling comes later
+  build: null   # no code yet
+  test: null    # no code yet
+  lint: null    # no code yet
+
+# Where a change goes after the agent writes it, besides edit, local, commit, task and continuous, which are always
+# there. Values from a loop's trigger: ci, scheduled, preview, staging, production.
+# All three are chosen by the user (H1, 2026-11-09) and do not exist yet: they are infrastructure to set up.
+stages: [ci, preview, production]
+stages_plan:
+  ci: GitHub Actions on every PR; the repository goes public (H4, 2026-11-09) for free standard runners and branch protection
+  preview: Railway PR Environments, one environment per PR
+  production: Railway deploys main after the merge
+
+# What the agent can use from its own session, each checked with one real call.
+# Keys: ci, logs, errors, metrics, traces, browser, deploy. Value: what and how, e.g. "GitLab CI via glab".
+# Leave out what the agent cannot reach.
+tools:
+  ci: "GitHub via gh, logged in on the Mac and on the bb VPS (gh repo view works); no workflows yet"
+  browser: "agent-browser and Chrome DevTools MCP on the Mac only; not on the bb VPS, where tickets run"
+
+# Promised by the user (H1, 2026-11-09), not reachable yet: each becomes a tools entry once one real call works.
+tools_pending:
+  deploy: Railway (token)
+  logs: Railway (token)
+  errors: PostHog (personal API key)
+  metrics: PostHog (personal API key)
+  dns_access: Cloudflare (API token)
+
+# Where the agents run. Tickets run as bb threads on the VPS (.bb/bb.yaml): 1 vCPU, 889 MB RAM, 2 GB swap
+# (1.8 GB used at setup), 6 GB free disk; go, pnpm and sqlite3 are not installed there. Heavy checks (browser,
+# full run) go to GitHub Actions; on the VPS only light ones (H4, 2026-11-09).
+agent_runtime: bb VPS, small; heavy checks in CI
+
+# The checks the project already runs, and where, e.g. "golangci-lint: CI job lint". Reused, not rebuilt.
+existing_checks: []
+
+# The failures the loops must catch first: breaks-build, not-really-working, conventions, escapes, security,
+# performance, compatibility, or the user's own words. Add the evidence when there is any.
+# No history yet; chosen by the user (H4, 2026-11-09) for a flow where they appear only at the UI prototype and the
+# dev preview, and everything else runs on its own.
+pains:
+  - breaks-build
+  - not-really-working   # on the preview, so the user's check is not wasted
+  - escapes              # main deploys to production on its own
+  - conventions
+
+# Where the user wants to be called in, in their words: "поработать над UI прототипом и одобрить его" and
+# "потыкать в dev-preview построенной фичи". Nowhere else.
+human_points:
+  - ui-prototype-approval
+  - preview-acceptance

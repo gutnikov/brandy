@@ -1,0 +1,69 @@
+# Policy of the harness engineer for brandy.
+#
+# Started from the plugin default and decided with the user at setup on 2026-11-09 (H7).
+# Only this copy counts. It changes only with the user's approval (H7).
+
+version: 1
+
+# What the harness engineer may do without asking.
+autonomy:
+  edit_guides: true              # CLAUDE.md, AGENTS.md and skills that guide the coding agent
+  write_instrumentation: true    # logs, health endpoints, test seams in product code; never features
+  create_loop_agents: true       # agents whose execution is a step of a registered loop, and their evals
+  commit: true
+  push: true                     # straight to main until CI exists; then through a PR
+  merge: true                    # once main is protected: only a PR whose required checks are green
+  production_rollback: true      # roll production back to the previous deploy when the post-deploy check fails,
+                                 # then tell the user; every other production action is H2 (user, 2026-11-09)
+  budget_usd: null               # agents run on the Claude subscription and Actions are free on a public repo;
+                                 # any spend in Railway, Cloudflare or PostHog is H2 anyway
+
+# When the harness engineer may call a person. Every call names one of these ids and is logged in
+# loops/hitl-log.jsonl. A call that fits none of them is not allowed.
+hitl:
+  allowed:
+    - id: H1
+      name: intent
+      when: The requirement is still ambiguous after reading the code, the docs, the history and the existing loops.
+    - id: H2
+      name: action
+      when: >-
+        The next action is outside the autonomy above, or cannot be undone: anything that touches production,
+        deletes data, sends something outside the project, or costs money in an external service. In brandy this
+        includes making the repository public (the history of .bb/bb.yaml names the VPS's root login and ssh key,
+        which must be cleaned first), and any Railway or Cloudflare setting that affects production.
+    - id: H3
+      name: access
+      when: A credential, an account or an installation the harness engineer cannot get by itself.
+    - id: H4
+      name: taste
+      when: >-
+        Two or more valid options differ in a trade-off only the user can weigh: which loops come first, how strict
+        a loop is, how much noise is acceptable.
+    - id: H5
+      name: reference
+      when: >-
+        Approving a reference the loops will trust: a baseline, a golden file, a threshold, a person's grades for
+        calibrating an LLM judge.
+    - id: H6
+      name: budget
+      when: Spend would go over autonomy.budget_usd. Never applies while budget_usd is null.
+    - id: H7
+      name: policy
+      when: Changing this policy.
+
+  # Never a reason to call a person, whatever the case.
+  never_ask:
+    - Anything the repository, its docs, a tool's --help or running a command can answer.
+    - Style and naming inside loop artifacts.
+    - Confirmation of an action the autonomy above allows and that can be undone.
+
+  # How every call is made.
+  rules:
+    - >-
+      One question per message. The one exception is the setup form about the project's profile: up to 4
+      questions in one call. Say what was already checked to answer it without the user.
+    - 2–4 options, the recommended one first, plus a free answer.
+    - Show, don't describe: a schema of the loop, a table, a screenshot, real command output.
+    - Ask in the agent session only, with its question tool when it has one.
+    - Log the call and the answer in loops/hitl-log.jsonl.
