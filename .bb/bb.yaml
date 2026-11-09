@@ -1,0 +1,19 @@
+# This repository's bb setup is maintained by the bb agent
+# (Claude Code plugin bb@private-plugins). To change it, ask that agent: where the
+# bb server runs, the Manager preset, periodic tasks. bb itself holds the rest
+# of the setup; this file keeps only what bb cannot tell.
+maintained_by: bb@private-plugins
+
+server:
+  machine: host_xp44tr5x78   # the VPS; hostname in .bb/bb.local.yaml; the server moved here on 2026-11-09
+  where: remote
+  route: ssh-tunnel
+  ssh_host: see .bb/bb.local.yaml   # not committed: the VPS login and the tunnel command
+  url: http://127.0.0.1:38896   # BB_SERVER_URL for the bb CLI here
+  # This Mac is an enrolled machine since the move; its ~/.bb holds machine credentials
+  # that the server rejects (HTTP 401) over the tunnel. Run the CLI with an empty data dir:
+  cli_data_dir: ~/.bb-remote-cli  # BB_DATA_DIR for the bb CLI here
+
+project: proj_bz5z56zxdm   # bb project "vendy", source /root/projects/vendy on the VPS
+tracker: VEN               # bb Tasks project "vendy"
+preset: Manager            # claude-code, claude-opus-5-5, high, auto
