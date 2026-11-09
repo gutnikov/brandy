@@ -87,6 +87,9 @@ Wiring triggered for real on 2026-11-09:
   https://app-brandy-pr-7.up.railway.app (healthz 200, 1 specs passed)` in 45 s, screenshot in the artifact
   (run 42629891597). Then a commit that logs a console error: red, `Error: console errors` with the message
   (run 42630248355). PR closed unmerged.
+- Scratch PR #13 (an app that needs a variable Railway lacks): the preview deploy failed at start; `reproduce`
+  built and started the image with `.env.example`'s values and said a Railway variable is most likely missing
+  (run 42654123342). PR closed unmerged.
 - The first run on #7 found a deadlock: the PR environment inherited Railway's "Wait for CI", so the app waited for
   `preview-check` while `preview-check` waited for the app. "Wait for CI" is now off everywhere (see prod-guard).
 
