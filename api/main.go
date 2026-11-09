@@ -117,7 +117,9 @@ func run(log *slog.Logger) error {
 		runErr = errors.Join(runErr, err)
 	}
 	stopSidecar()
-	<-sidecarDone
+	if err := <-sidecarDone; err != nil {
+		runErr = errors.Join(runErr, err)
+	}
 	return runErr
 }
 

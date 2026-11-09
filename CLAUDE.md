@@ -138,7 +138,10 @@ The API is the Go module in `api/` and the web app the pnpm package in `web/`. S
   - everything CI checks: `loops/verify/run .` (light), `VERIFY_MODE=full loops/verify/run .` (adds `vite build`;
     golangci-lint when installed)
   - Go: `cd api && go test ./...`; lint: `golangci-lint run` (v2, config `api/.golangci.yml`)
-  - web: `cd web && pnpm typecheck`, `pnpm lint`, `pnpm test` (Vitest, unit and component tests)
+  - web: `cd web && pnpm typecheck`, `pnpm lint`, `pnpm test` (Vitest, unit and component tests). `src/`,
+    `server/` (the auth sidecar) and `e2e/` are separate TypeScript programs (a `tsconfig.json` each), and
+    `pnpm lint` (`web/lint.mjs`) runs ESLint on them in separate processes: one typed program for all of them
+    needs more memory than Node gives ESLint on the VPS.
   - e2e: start the app, then `cd web && pnpm test:e2e` (Playwright, Chromium, specs in `web/e2e/`). It runs against
     `BASE_URL`, default `http://localhost:5173`; `BASE_URL=http://localhost:8080 pnpm test:e2e` for the built app.
 - Migrations: add `api/internal/db/migrations/NNNN_name.sql` with the next number. Each applies once, in a

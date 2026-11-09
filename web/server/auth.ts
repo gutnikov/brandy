@@ -12,9 +12,11 @@ export function openDatabase(path: string): DatabaseSync {
   return db;
 }
 
-// Sign-in and sign-up per client IP (the Go API passes it in X-Forwarded-For): Better Auth's default is 3 in 10
-// seconds; 10 a minute is as strict against guessing and lets the e2e suite, from one CI machine, through.
-const authRateLimit = { window: 60, max: 10 };
+// Per client IP (the Go API passes it in X-Forwarded-For). Better Auth's default for both is 3 in 10 seconds.
+// Sign-in: 10 a minute, as strict against password guessing. Sign-up guesses nothing; 30 a minute lets the e2e
+// suite, which signs up about ten users from one CI machine, through.
+const signInRateLimit = { window: 60, max: 10 };
+const signUpRateLimit = { window: 60, max: 30 };
 
 export function authOptions(config: Omit<SidecarConfig, 'port' | 'databasePath'>, database: DatabaseSync) {
   return {
@@ -26,7 +28,7 @@ export function authOptions(config: Omit<SidecarConfig, 'port' | 'databasePath'>
     database,
     emailAndPassword: { enabled: true, autoSignIn: true, minPasswordLength: 8 },
     rateLimit: {
-      customRules: { '/sign-in/email': authRateLimit, '/sign-up/email': authRateLimit },
+      customRules: { '/sign-in/email': signInRateLimit, '/sign-up/email': signUpRateLimit },
     },
     // Explicit, so that tests (where Better Auth skips it by default) check the same as production.
     advanced: { disableOriginCheck: false },

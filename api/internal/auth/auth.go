@@ -81,7 +81,7 @@ func verify(raw, secret string) (string, bool) {
 // Sign returns the HMAC-SHA256 of value with secret, as Better Auth signs its cookies.
 func Sign(value, secret string) []byte {
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(value))
+	_, _ = mac.Write([]byte(value)) // a hash.Hash never returns an error
 	return mac.Sum(nil)
 }
 

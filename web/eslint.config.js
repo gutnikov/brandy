@@ -17,6 +17,16 @@ export default tseslint.config(
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },
   },
+  // server/ and e2e/ (with playwright.config.ts) are programs of their own, each with its tsconfig.json: naming it
+  // keeps a file from loading a second program (lint.mjs says why the programs are split).
+  {
+    files: ['server/**/*.ts'],
+    languageOptions: { parserOptions: { projectService: false, project: './server/tsconfig.json' } },
+  },
+  {
+    files: ['e2e/**/*.ts', 'playwright.config.ts'],
+    languageOptions: { parserOptions: { projectService: false, project: './e2e/tsconfig.json' } },
+  },
   // The config file itself: typed linting would load all of typescript-eslint's types (out of memory on the VPS).
   { files: ['**/*.js'], extends: [tseslint.configs.disableTypeChecked] },
   {

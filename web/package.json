@@ -11,8 +11,8 @@
     "dev": "vite",
     "build": "vite build && vite build --config server/vite.config.ts",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p server && tsc --noEmit -p e2e",
+    "lint": "node lint.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "proto": "vite --config prototypes/vite.config.mjs"

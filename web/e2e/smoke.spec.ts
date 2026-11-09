@@ -1,8 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures.ts';
 
-// The app loads and talks to its API: run it against the Vite dev server or a deployed preview (BASE_URL).
-// Tagged @smoke: it also runs against production after every deploy (loop prod-guard), so it must only read.
-test('/ loads and shows the hello message from the API', { tag: '@smoke' }, async ({ page, baseURL }) => {
+// The app loads and talks to its API and its auth sidecar: run it against the Vite dev server or a deployed
+// preview (BASE_URL). Tagged @smoke: it also runs against production after every deploy (loop prod-guard), so it
+// must only read: it signs nobody up or in. A signed-out visitor of / lands on /sign-in.
+test('/ sends a signed-out visitor to the sign-in screen, and auth answers', { tag: '@smoke' }, async ({
+  page,
+  baseURL,
+  signInPage,
+}) => {
   const origin = new URL(baseURL ?? page.url()).origin;
   const consoleErrors: string[] = [];
   const failedRequests: string[] = [];
@@ -22,10 +27,16 @@ test('/ loads and shows the hello message from the API', { tag: '@smoke' }, asyn
     }
   });
 
+  // The app asks the auth sidecar (through the Go API) for the session: it must answer, with no session.
+  const session = page.waitForResponse((res) => new URL(res.url()).pathname === '/api/auth/get-session');
   const res = await page.goto('/');
   expect(res?.ok()).toBe(true);
-  await expect(page.getByTestId('hello-message')).toHaveText('hello');
-  await page.waitForLoadState('networkidle');
+  expect((await session).status()).toBe(200);
+  await expect(page).toHaveURL('/sign-in');
+  await signInPage.expectOpen();
+
+  // The Go API's own session check: signed out.
+  expect((await page.request.get('/api/me')).status()).toBe(401);
 
   expect(consoleErrors, 'console errors').toEqual([]);
   expect(failedRequests, 'failed requests to the app').toEqual([]);
