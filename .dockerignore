@@ -1,12 +1,7 @@
-.git
-.github
-.bb
-.claude
-loops
+# Kept out of every image build (app and proto): local secrets, installs and data.
+**/.env
+**/.env.*
 **/node_modules
-web/dist
-web/playwright-report
-web/test-results
-data
-api/data
-.env
+**/data
+.git
+loops
