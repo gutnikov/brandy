@@ -32,8 +32,9 @@ hitl:
       when: >-
         The next action is outside the autonomy above, or cannot be undone: anything that touches production,
         deletes data, sends something outside the project, or costs money in an external service. In brandy this
-        includes making the repository public (the history of .bb/bb.yaml names the VPS's root login and ssh key,
-        which must be cleaned first), and any Railway or Cloudflare setting that affects production.
+        includes any Railway or Cloudflare setting that affects production. (The repository went public on
+        2026-11-09 after its history was cleaned; host details of the bb route stay in .bb/bb.local.yaml, which
+        is not committed.)
     - id: H3
       name: access
       when: A credential, an account or an installation the harness engineer cannot get by itself.
