@@ -2,7 +2,7 @@
 id: verify
 title: "The project's build, vet, lint, type and test checks before a turn ends and before a merge"
 type: stop-hook
-status: validated
+status: active
 trigger: [local, ci]
 run: ./run
 budget_seconds: 60
