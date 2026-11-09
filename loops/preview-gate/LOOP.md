@@ -2,7 +2,7 @@
 id: preview-gate
 title: "The user tries the built feature on its preview before the merge"
 type: result-demo
-status: built
+status: active
 trigger: [task, preview]
 run: none
 budget_seconds: 0
@@ -43,7 +43,7 @@ The call is H1: only the user can say whether the feature is what they meant.
 | `app-probing` skill (plugin `app-probing@private-plugins`) | 0.1.0 | installed on the bb VPS for root, 2026-11-09 |
 | `gh` | logged in as gutnikov on the bb VPS | merges the PR |
 | bb Tasks comments and AskUserQuestion | bb 0.48.1 | the user answers with a tap in the bb app |
-| Railway PR environment and `preview-check` | — | not set up yet (Railway token, H3) |
+| Railway PR environment and `preview-check` | — | `app-brandy-pr-<N>`; `preview-check` required on main |
 
 ## Signal
 
@@ -54,8 +54,14 @@ comments are the record.
 
 Manual: the signal is a person's judgement. What is checked instead: on the first ticket with a user-visible change,
 the user is called only after both checks are green, the message has the URL, a login, steps and screenshots, and
-"Something is wrong" turns into a red e2e test before the fix. A backend-only ticket merges without a call. The loop
-becomes `validated` after both are seen on real tickets.
+"Something is wrong" turns into a red e2e test before the fix. A backend-only ticket merges without a call.
+
+Seen on BRN-5 (2026-11-09): the manager waited for `verify` and `preview-check` (9 e2e specs on the preview), set the
+ticket to `in_review` and posted the preview URL, how to sign up, 5 steps, the approved prototype's URL and the
+green runs; the user chose Merge; the manager merged after `gh pr checks`; Railway deployed and `prod-guard` was
+green. One stall: the manager held the merge on a Railway secret it could not check; the harness agent confirmed it.
+`CLAUDE.md` now says how Railway variables are requested and confirmed. Not seen yet: "Something is wrong" and a
+backend-only PR merging without the gate.
 
 ## Wiring
 

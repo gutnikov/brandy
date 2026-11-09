@@ -45,7 +45,7 @@ jobs:
               success*) break ;;
               failure*|error*)
                 echo "preview-check: FAIL railway — the preview build or deploy of $SHA failed. Railway logs: ${st#* }"
-                echo "How to fix: the next step rebuilds the image here so the error is in this job's log; fix it and push."
+                echo "How to fix: the next step builds and starts the image here, so the error is in this job's log."
                 echo "result=build-failed" >> "$GITHUB_OUTPUT"; exit 1 ;;
             esac
             sleep 20
@@ -54,9 +54,9 @@ jobs:
           body=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --jq '[.[] | select(.user.login=="railway-app[bot]")] | last | .body')
           url=$(printf '%s\n' "$body" | grep -E '^\|[[:space:]]*app[[:space:]]*\|' | grep -oE 'https://[a-z0-9.-]+\.up\.railway\.app' | head -1)
           echo "url=${url:-https://app-brandy-pr-$PR.up.railway.app}" >> "$GITHUB_OUTPUT"
-      - name: Rebuild the image to show the build error
+      - name: Reproduce the failed deploy here (build and start the image)
         if: failure() && steps.railway.outputs.result == 'build-failed'
-        run: docker build -f Dockerfile .
+        run: loops/preview-check/reproduce
       - uses: actions/setup-node@v5
         if: steps.affected.outputs.deploys == 'true'
         with:

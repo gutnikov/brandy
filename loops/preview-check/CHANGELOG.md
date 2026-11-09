@@ -5,3 +5,4 @@
 - 2026-11-09: built: run (healthz + Playwright), 4 cases validated; workflow on every PR, no Railway token.
 - 2026-11-09: validated on real previews (PR #7: green, then red on a console error); required on main. E2E_GREP for prod-guard.
 - 2026-11-09: active: wired on main (required check).
+- 2026-11-09: a failed preview deploy is reproduced in the job (build, then start the image with .env.example values) instead of only rebuilt: on BRN-5 the deploy failed at start (missing BETTER_AUTH_SECRET) and the rebuild showed nothing.

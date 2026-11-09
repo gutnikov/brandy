@@ -27,8 +27,10 @@ setup).
 2. If the PR changes nothing under `api/`, `web/` or `Dockerfile` (the watch patterns of the Railway service `app`),
    Railway deploys no app preview: the job passes with `SKIP`.
 3. Otherwise it waits, up to 20 minutes, for Railway's commit status `brandy - app` on the PR's head commit.
-   - `failure`: the preview build or deploy failed. The job fails with Railway's log link and rebuilds the image with
-     `docker build` in the job, so the build error is in the job log, readable with `gh run view --log-failed`.
+   - `failure`: the preview build or deploy failed. The job fails with Railway's log link, and
+     `loops/preview-check/reproduce` builds and starts the image in the job (with the values of `.env.example` the
+     Dockerfile does not set), so the error is in the job log, readable with `gh run view --log-failed`. If the
+     image starts there, it says that a Railway variable is most likely missing.
    - `success`: it reads the app's URL from Railway's PR comment (fallback `https://app-brandy-pr-<N>.up.railway.app`).
 4. `loops/preview-check/run <url>`: `/healthz` until 200 (3 minutes), then the Playwright suite in `web/e2e` against
    the URL: the smoke spec and every feature spec (only the specs matching `E2E_GREP` when it is set; prod-guard sets
@@ -85,6 +87,9 @@ Wiring triggered for real on 2026-11-09:
   https://app-brandy-pr-7.up.railway.app (healthz 200, 1 specs passed)` in 45 s, screenshot in the artifact
   (run 42629891597). Then a commit that logs a console error: red, `Error: console errors` with the message
   (run 42630248355). PR closed unmerged.
+- Scratch PR #13 (an app that needs a variable Railway lacks): the preview deploy failed at start; `reproduce`
+  built and started the image with `.env.example`'s values and said a Railway variable is most likely missing
+  (run 42654123342). PR closed unmerged.
 - The first run on #7 found a deadlock: the PR environment inherited Railway's "Wait for CI", so the app waited for
   `preview-check` while `preview-check` waited for the app. "Wait for CI" is now off everywhere (see prod-guard).
 

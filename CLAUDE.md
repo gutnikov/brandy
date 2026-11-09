@@ -39,6 +39,9 @@ volume at `/data`) and `proto` (the prototype server for gate 1).
   `https://app-brandy-pr-<N>.up.railway.app`, the prototypes at `https://proto-brandy-pr-<N>.up.railway.app/<name>`.
   Railway's comment on the PR lists the exact URLs and the deploy status of each service.
 - The agents have no Railway access. The checks read Railway's results from GitHub.
+- A PR that needs a Railway variable (a new secret or setting): the manager asks the user once, with the exact
+  name, the service (`app` or `proto`) and the environments; the harness agent sets it and confirms on the ticket.
+  Once the ticket has that confirmation, do not hold the merge on it.
 
 If the user picks "Drop the ticket" at either gate, the manager sets the ticket to `canceled` and closes the PR.
 
