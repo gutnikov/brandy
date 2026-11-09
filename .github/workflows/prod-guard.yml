@@ -2,8 +2,9 @@
 # when it is down (policy autonomy.production_rollback), and open an issue either way something is wrong.
 # Triggered by Railway's commit status "brandy - app" on a main commit: Railway reports when the deploy ended, so
 # nothing polls Railway, and no job holds a deploy back.
-# RAILWAY_TOKEN is a Railway project token for the production environment only, kept in the GitHub environment
-# "production", which only protected branches (main) can use.
+# Secrets are kept away from third-party code: the job that installs npm packages and runs the browser has none.
+# RAILWAY_TOKEN (a Railway project token for production only, in the GitHub environment "production", which only
+# protected branches can use) is given to the rollback step alone, in a job that installs nothing.
 name: prod-guard
 on:
   status:
@@ -12,14 +13,10 @@ concurrency:
   cancel-in-progress: false
 permissions:
   contents: read
-  issues: write
 env:
   PROD_URL: https://app-production-fd86.up.railway.app
-  RAILWAY_PROJECT_ID: 3eddf5a4-96dc-48ed-bfd6-79eefd880cd4
-  RAILWAY_ENVIRONMENT_ID: d61d98df-d69f-426e-b166-a97a1ce20378
-  RAILWAY_SERVICE_ID: 040325ef-6b8d-42dd-a916-0a0a53a2a9ee
 jobs:
-  prod-guard:
+  check:
     # Railway's final status for a main commit; not pending, not a PR environment, not "no deployment needed".
     if: >-
       github.event.context == 'brandy - app' && github.event.state != 'pending' &&
@@ -27,11 +24,11 @@ jobs:
       !startsWith(github.event.description, 'No deployment needed') &&
       !startsWith(github.event.description, 'Deployment cancelled')
     runs-on: ubuntu-latest
-    environment: production
-    timeout-minutes: 45
+    timeout-minutes: 20
+    outputs:
+      code: ${{ steps.guard.outputs.code }}
+      report: ${{ steps.guard.outputs.report }}
     env:
-      GH_TOKEN: ${{ github.token }}
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       SHA: ${{ github.event.sha }}
       STATE: ${{ github.event.state }}
       DESCRIPTION: ${{ github.event.description }}
@@ -55,27 +52,78 @@ jobs:
         id: guard
         run: |
           set +e
-          loops/prod-guard/run "$PROD_URL" | tee guard.txt
-          echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          loops/prod-guard/run "$PROD_URL" > guard.txt 2>&1
+          code=$?
+          cat guard.txt
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          { echo 'report<<GUARD_EOF'; tail -c 6000 guard.txt; echo 'GUARD_EOF'; } >> "$GITHUB_OUTPUT"
+
+  rollback:
+    needs: check
+    if: needs.check.outputs.code == '3'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    outputs:
+      result: ${{ steps.rollback.outputs.result }}
+    env:
+      RAILWAY_PROJECT_ID: 3eddf5a4-96dc-48ed-bfd6-79eefd880cd4
+      RAILWAY_ENVIRONMENT_ID: d61d98df-d69f-426e-b166-a97a1ce20378
+      RAILWAY_SERVICE_ID: 040325ef-6b8d-42dd-a916-0a0a53a2a9ee
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.sha }}
+          sparse-checkout: loops/prod-guard
       - name: Roll back (production is down)
-        if: steps.guard.outputs.code == '3'
-        run: |
-          python3 loops/prod-guard/railway.py rollback | tee -a guard.txt
-          sleep 60
-          PREVIEW_WAIT=300 loops/prod-guard/run "$PROD_URL" | tee -a guard.txt || true
-      - name: Open an issue
-        if: steps.guard.outputs.code != '0' || github.event.state != 'success'
+        id: rollback
         env:
-          CODE: ${{ steps.guard.outputs.code }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set +e
+          out=$(python3 loops/prod-guard/railway.py rollback 2>&1); code=$?
+          echo "$out"
+          echo "result=$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)" >> "$GITHUB_OUTPUT"
+          exit $code
+      - name: Is production back?
+        run: |
+          for i in $(seq 1 30); do
+            [ "$(curl -s -o /dev/null -w '%{http_code}' -m 10 "$PROD_URL/healthz")" = 200 ] && { echo "prod-guard: production answers /healthz again"; exit 0; }
+            sleep 10
+          done
+          echo "prod-guard: production still does not answer /healthz after the rollback"; exit 1
+
+  report:
+    needs: [check, rollback]
+    if: >-
+      always() && needs.check.result != 'skipped' &&
+      (needs.check.outputs.code != '0' || github.event.state != 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open an issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.event.sha }}
+          STATE: ${{ github.event.state }}
+          DESCRIPTION: ${{ github.event.description }}
+          CODE: ${{ needs.check.outputs.code }}
+          REPORT: ${{ needs.check.outputs.report }}
+          ROLLBACK: ${{ needs.rollback.outputs.result }}
+          ROLLBACK_JOB: ${{ needs.rollback.result }}
         run: |
           case "$CODE" in
-            3) title="prod-guard: production was down after ${SHA::7}, rolled back" ;;
+            3) title="prod-guard: production was down after ${SHA::7}; rollback: $ROLLBACK_JOB" ;;
             1) title="prod-guard: smoke failed on production after ${SHA::7} (not rolled back)" ;;
-            *) title="prod-guard: production deploy of ${SHA::7} failed; production still runs the previous one" ;;
+            0) title="prod-guard: production deploy of ${SHA::7} failed; production still runs the previous one" ;;
+            *) title="prod-guard: the check did not run for ${SHA::7}" ;;
           esac
           { echo "Commit: $SHA · Railway: $STATE: $DESCRIPTION · run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-            echo; echo '```'; cat guard.txt 2>/dev/null; echo '```'; } > issue.md
+            [ -n "$ROLLBACK" ] && echo "Rollback: $ROLLBACK"
+            echo; echo '```'; printf '%s\n' "$REPORT"; echo '```'; } > issue.md
           gh issue create --title "$title" --body-file issue.md
       - name: Fail the run when production is not fine
-        if: steps.guard.outputs.code != '0'
+        if: needs.check.outputs.code != '0'
         run: exit 1

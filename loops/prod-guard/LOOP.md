@@ -30,7 +30,7 @@ but only when production is down (policy `autonomy.production_rollback`, 2026-11
 3. `loops/prod-guard/run <production url>` runs `loops/preview-check/run` with `E2E_GREP=@smoke`: `/healthz` until 200,
    then only the specs tagged `@smoke`, which must only read.
    - Exit 3, down: `loops/prod-guard/railway.py rollback` rolls the service back to the last good deployment of an
-     earlier commit, checks production again, and opens an issue "production was down …, rolled back".
+     earlier commit, waits for `/healthz` again, and opens an issue "production was down …; rollback: <result>".
    - Exit 1, up but a smoke spec failed: an issue "smoke failed on production …", no rollback.
    - Railway reported a failed deploy but production answers: an issue "deploy … failed; production still runs the
      previous one".
@@ -74,5 +74,11 @@ rollback has not been run.
 
 ## Wiring
 
-`.github/workflows/prod-guard.yml`, on `status`, job `prod-guard` in the GitHub environment `production`. The
-specs tagged `@smoke` in `web/e2e` are the production smoke suite; `CLAUDE.md` says they must only read.
+`.github/workflows/prod-guard.yml`, on `status`, three jobs:
+
+- `check`: no environment and no secrets. It installs the web app (third-party npm code) and runs `run`.
+- `rollback`: only when `check` says down; in the GitHub environment `production`; installs nothing; `RAILWAY_TOKEN`
+  is given to the rollback step alone. Then it polls `/healthz` until production is back.
+- `report`: the issue, with `GH_TOKEN` on that step alone; the run fails when production is not fine.
+
+The specs tagged `@smoke` in `web/e2e` are the production smoke suite; `CLAUDE.md` says they must only read.
