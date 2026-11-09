@@ -1,3 +1,4 @@
+// Scratch: triggers a Railway app preview for the preview-check validation (PR closed unmerged).
 import { useQuery } from '@tanstack/react-query';
 import { fetchHello } from './api.ts';
 
