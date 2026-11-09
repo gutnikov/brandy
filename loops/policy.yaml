@@ -13,8 +13,10 @@ autonomy:
   commit: true
   push: true                     # straight to main until CI exists; then through a PR
   merge: true                    # once main is protected: only a PR whose required checks are green
-  production_rollback: true      # roll production back to the previous deploy when the post-deploy check fails,
-                                 # then tell the user; every other production action is H2 (user, 2026-11-09)
+  production_rollback: true      # roll production back to the previous deploy only when production is down
+                                 # (no answer, or /healthz is not 200 after the retries), then tell the user.
+                                 # Production up but a scenario broken: tell the user, do not roll back.
+                                 # Every other production action is H2 (user, 2026-11-09)
   budget_usd: null               # agents run on the Claude subscription and Actions are free on a public repo;
                                  # any spend in Railway, Cloudflare or PostHog is H2 anyway
 

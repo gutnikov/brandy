@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+"""verify: the project's own build, vet, format, lint, type and test checks behind one command.
+
+Usage: loops/verify/run <dir>          exit 0 = passes, 1 = fires, 2 = cannot run (a tool is missing)
+       VERIFY_MODE=full loops/verify/run <dir>
+
+It finds every Go module (go.mod) and every pnpm package (package.json) under <dir> and runs:
+  Go:   gofmt -l, go vet ./..., go build ./..., go test -count=1 ./..., golangci-lint run (when a config exists)
+  web:  the package's scripts typecheck, lint, test; in full mode also build. A missing script is skipped.
+Light mode (the default) is for the agent's machine; full mode is for CI.
+It skips loops/, node_modules/, .git/, vendor/ and dist/ below <dir>.
+"""
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+SKIP = {"node_modules", "vendor", "dist"}  # at any depth; hidden directories too
+SKIP_TOP = {"loops"}                       # only right below <dir>: the harness's own cases are not product code
+TAIL = 60          # lines of a failing tool's output to show
+STEP_TIMEOUT = 900  # seconds per step
+
+FIX = {
+    "gofmt": "format it: gofmt -w <file>",
+    "go vet": "fix what vet reports; it is a real bug, do not silence it",
+    "go build": "fix the compile error at file:line",
+    "go test": "fix the code (or the test, only if the requirement changed); never delete or skip a failing test",
+    "golangci-lint": "fix what the linter says; //nolint:<linter> only with a reason after it",
+    "typecheck": "fix the type error; no any, @ts-ignore or @ts-expect-error to silence it",
+    "lint": "run the package's lint with --fix first, then fix the rest by hand",
+    "test": "fix the code (or the test, only if the requirement changed); never delete or skip a failing test",
+    "build": "fix the build error",
+}
+
+
+def walk(root, top=None):
+    """Yield (dirpath, filenames) below root, skipping SKIP directories, and SKIP_TOP right below top."""
+    top = top or root
+    for dirpath, dirnames, filenames in os.walk(root):
+        here = Path(dirpath)
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP and not d.startswith(".")
+                             and not (here == top and d in SKIP_TOP))
+        yield here, sorted(filenames)
+
+
+def clean(text):
+    """Drop what changes between runs: durations and absolute paths."""
+    text = re.sub(r"\b\d+(\.\d+)?m?s\b", "<t>", text)
+    return text.replace(str(Path.cwd()), ".")
+
+
+def run(step, cmd, cwd, env=None):
+    try:
+        p = subprocess.run(cmd, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           text=True, timeout=STEP_TIMEOUT)
+        return p.returncode, clean(p.stdout)
+    except subprocess.TimeoutExpired:
+        return 124, "%s: timed out after %ds" % (step, STEP_TIMEOUT)
+
+
+def go_checks(mod, root, full):
+    rel = mod.relative_to(root).as_posix() or "."
+    files = [f for d, names in walk(mod, root) for f in (d / n for n in names) if f.suffix == ".go"]
+    # nested modules are checked on their own
+    files = [f for f in files if not any((p / "go.mod").exists() for p in f.parents if mod in p.parents)]
+    if files:
+        code, out = run("gofmt", ["gofmt", "-l"] + [str(f.relative_to(mod)) for f in files], mod)
+        bad = [l for l in out.splitlines() if l.strip()]
+        if code or bad:
+            yield "gofmt", rel, "\n".join("%s/%s:1: not gofmt-formatted" % (rel, b) for b in bad) or out
+    # build first: a compile error then shows once; tests skip vet, which has its own step
+    for step, cmd in (("go build", ["go", "build", "./..."]),
+                      ("go vet", ["go", "vet", "./..."]),
+                      ("go test", ["go", "test", "-count=1", "-vet=off", "./..."])):
+        code, out = run(step, cmd, mod)
+        if code:
+            yield step, rel, out
+            if step == "go build":
+                return  # tests cannot run on code that does not compile
+    configs = [".golangci.yml", ".golangci.yaml", ".golangci.toml", ".golangci.json"]
+    if any((mod / c).exists() or (root / c).exists() for c in configs):
+        if shutil.which("golangci-lint"):
+            code, out = run("golangci-lint", ["golangci-lint", "run", "./..."], mod)
+            if code:
+                yield "golangci-lint", rel, out
+        elif full:
+            yield "golangci-lint", rel, "golangci-lint is configured but not installed"
+
+
+def web_checks(pkg, root, full):
+    import json
+    rel = pkg.relative_to(root).as_posix() or "."
+    data = json.loads((pkg / "package.json").read_text())
+    scripts = data.get("scripts") or {}
+    wanted = ["typecheck", "lint", "test"] + (["build"] if full else [])
+    todo = [s for s in wanted if s in scripts]
+    if not todo:
+        return
+    env = dict(os.environ, CI="true")  # test runners run once instead of watching
+    deps = data.get("dependencies") or data.get("devDependencies")
+    if deps and not (pkg / "node_modules").exists():
+        lock = ["--frozen-lockfile"] if (pkg / "pnpm-lock.yaml").exists() else []
+        code, out = run("pnpm install", ["pnpm", "install"] + lock, pkg, env)
+        if code:
+            yield "pnpm install", rel, out
+            return
+    for s in todo:
+        # no implicit install before the run: it differs between the first run and the next ones
+        code, out = run(s, ["pnpm", "--config.verify-deps-before-run=false", "run", s], pkg, env)
+        if code:
+            yield s, rel, out
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit("usage: run <dir>")
+    root = Path(sys.argv[1]).resolve()
+    os.chdir(root)
+    full = os.environ.get("VERIFY_MODE", "light") == "full"
+    mods, pkgs, workspaces = [], [], []
+    for d, names in walk(root):
+        if "go.mod" in names:
+            mods.append(d)
+        if "pnpm-workspace.yaml" in names:
+            workspaces.append(d)
+        # a package inside a pnpm workspace is checked through the workspace root's scripts (pnpm -r …)
+        if "package.json" in names and not any(w in d.parents for w in workspaces):
+            pkgs.append(d)
+    need = (["go", "gofmt"] if mods else []) + (["pnpm"] if pkgs else [])
+    missing = [t for t in need if not shutil.which(t)]
+    if missing:
+        print("verify: cannot run: %s not installed (see loops/verify/LOOP.md, Tools)" % ", ".join(missing))
+        sys.exit(2)
+    failures = []
+    for m in mods:
+        failures += list(go_checks(m, root, full))
+    for p in pkgs:
+        failures += list(web_checks(p, root, full))
+    if not mods and not pkgs:
+        print("verify: OK, nothing to check (no go.mod or package.json)")
+        return
+    if not failures:
+        print("verify: OK (%s mode; Go modules: %s; web packages: %s)" % (
+            "full" if full else "light",
+            ", ".join(m.relative_to(root).as_posix() or "." for m in mods) or "none",
+            ", ".join(p.relative_to(root).as_posix() or "." for p in pkgs) or "none"))
+        return
+    for step, rel, out in failures:
+        lines = out.strip().splitlines()
+        print("verify: FAIL %s in %s — how to fix: %s" % (step, rel, FIX.get(step, "see the output")))
+        if len(lines) > TAIL:
+            print("  … %d earlier lines cut" % (len(lines) - TAIL))
+        print("\n".join(lines[-TAIL:]))
+        print()
+    print("verify: %d check(s) failed. Rerun: loops/verify/run %s" % (len(failures), sys.argv[1]))
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

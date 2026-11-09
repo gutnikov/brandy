@@ -1,0 +1,10 @@
+{
+  "name": "web-ok",
+  "private": true,
+  "scripts": {
+    "typecheck": "node -e \"process.exit(0)\"",
+    "lint": "node -e \"process.exit(0)\"",
+    "test": "node -e \"process.exit(0)\"",
+    "build": "node -e \"console.error('build runs only in full mode'); process.exit(1)\""
+  }
+}

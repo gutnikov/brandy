@@ -1,0 +1,15 @@
+#!/bin/sh
+# Claude Code Stop hook (loop verify): when this worktree changed product code against origin/main, run
+# loops/verify/run in light mode and block the end of the turn while it fails. Claude Code lets a Stop hook block
+# at most 8 times in a row; CI runs the same check in full mode as the final gate.
+cat >/dev/null  # the hook's JSON input is not needed
+top=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$top" || exit 0
+base=$(git merge-base HEAD origin/main 2>/dev/null) || base=HEAD
+changed=$( { git diff --name-only "$base" 2>/dev/null; git ls-files --others --exclude-standard; } \
+  | grep -vE '^(loops|\.bb|\.claude|\.github)/' \
+  | grep -E '\.(go|ts|tsx|js|jsx|mjs|cjs|css)$|(^|/)(go\.mod|go\.sum|package\.json|pnpm-lock\.yaml|tsconfig[^/]*\.json)$' )
+[ -z "$changed" ] && exit 0
+out=$(python3 loops/verify/run . 2>&1) && exit 0
+printf '%s\n\nloop verify blocked the end of the turn: fix the failures above, then finish.\n' "$out" | tail -n 150 >&2
+exit 2

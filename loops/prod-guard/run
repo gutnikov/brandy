@@ -1,0 +1,4 @@
+#!/bin/sh
+# Contract: $1 is the directory to check. Exit 0 = passes, non-zero = fires.
+echo "loop prod-guard is not built yet" >&2
+exit 2

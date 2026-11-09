@@ -14,5 +14,18 @@
         "repo": "gutnikov/my-claude-plugins"
       }
     }
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/loops/verify/stop-hook",
+            "timeout": 900
+          }
+        ]
+      }
+    ]
   }
 }
