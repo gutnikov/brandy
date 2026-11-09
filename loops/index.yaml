@@ -4,10 +4,9 @@ loops:
   - id: preview-check
     title: "The PR's preview starts and the feature works on it before the user is called"
     type: health-checks-smoke
-    status: proposed
+    status: built
     trigger: [preview]
     validation: cases
-    hitl: [H3]
   - id: preview-gate
     title: "The user tries the built feature on its preview before the merge"
     type: result-demo

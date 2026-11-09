@@ -1,4 +1,85 @@
-#!/bin/sh
-# Contract: $1 is the directory to check. Exit 0 = passes, non-zero = fires.
-echo "loop preview-check is not built yet" >&2
-exit 2
+#!/usr/bin/env python3
+"""preview-check: is a deployed brandy app up, and does it work in a real browser?
+
+Usage: loops/preview-check/run <url>    a deployed app, e.g. https://app-brandy-pr-7.up.railway.app
+       loops/preview-check/run <dir>    a validation case: <dir> is served by cases/stub_server.py on a local port
+
+1. GET <url>/healthz until it answers 200 (PREVIEW_WAIT seconds, default 180; 5 for a local case).
+2. The web app's Playwright suite (web/e2e) against <url>: the smoke spec and every feature spec.
+Exit 0: up and green. 1: up, but a spec failed. 3: down (no 200 from /healthz). 2: cannot run.
+Needs: web/node_modules installed and Playwright's Chromium (pnpm exec playwright install chromium).
+"""
+import os
+import re
+import socket
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parent.parent
+WEB = REPO / "web"
+
+
+def free_port():
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def healthz(url):
+    try:
+        with urllib.request.urlopen(url + "/healthz", timeout=10) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except Exception as e:  # noqa: BLE001 — any network failure means "not up yet"
+        return type(e).__name__
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit("usage: run <url|case-dir>")
+    target, stub, shown = sys.argv[1], None, sys.argv[1].rstrip("/")
+    wait = int(os.environ.get("PREVIEW_WAIT", "180"))
+    if os.path.isdir(target):
+        port = free_port()
+        stub = subprocess.Popen([sys.executable, str(HERE / "cases" / "stub_server.py"), target, str(port)],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        target, wait, shown = "http://127.0.0.1:%d" % port, 5, "<case>"  # the port changes; keep output stable
+    url = target.rstrip("/")
+    try:
+        deadline, last = time.time() + wait, None
+        while True:
+            last = healthz(url)
+            if last == 200:
+                break
+            if time.time() > deadline:
+                print("preview-check: DOWN %s/healthz gave no 200 in %d s (last: %s). How to fix: read the deploy "
+                      "logs of this environment; the app must start and answer /healthz." % (shown, wait, last))
+                sys.exit(3)
+            time.sleep(3)
+        env = dict(os.environ, BASE_URL=url, CI=os.environ.get("CI", "true"))
+        p = subprocess.run(["pnpm", "--config.verify-deps-before-run=false", "exec", "playwright", "test",
+                            "--reporter=line"], cwd=WEB, env=env, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True)
+        out = re.sub(r"\(\d+(\.\d+)?m?s\)", "(<t>)", p.stdout).replace(url, shown)
+        if p.returncode != 0:
+            lines = [l for l in out.splitlines() if l.strip()]
+            first = next((i for i, l in enumerate(lines) if "Error" in l), 0)
+            summary = next((i for i, l in enumerate(lines) if re.match(r"\s*\d+ failed", l)), len(lines))
+            print("preview-check: FAIL e2e against %s — how to fix: open the failing spec's trace in the "
+                  "playwright-report artifact (or reproduce with the app-probing skill), fix the app or the spec." % shown)
+            print("\n".join(lines[first:first + 18] + ["  …"] + lines[summary:]))
+            sys.exit(1)
+        passed = re.search(r"(\d+) passed", out)
+        print("preview-check: OK %s (healthz 200, %s specs passed)" % (shown, passed.group(1) if passed else "all"))
+    finally:
+        if stub:
+            stub.terminate()
+
+
+if __name__ == "__main__":
+    main()

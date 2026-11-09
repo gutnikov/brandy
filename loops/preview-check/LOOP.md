@@ -2,14 +2,14 @@
 id: preview-check
 title: "The PR's preview starts and the feature works on it before the user is called"
 type: health-checks-smoke
-status: proposed
+status: built
 trigger: [preview]
 run: ./run
-budget_seconds: 300
+budget_seconds: 60
 validation: cases
 agents: []
-hitl: [H3]
-wiring: [.github/workflows/preview-check.yml on deployment_status (planned)]
+hitl: []
+wiring: [.github/workflows/preview-check.yml job preview-check on every PR]
 ---
 
 # The PR's preview starts and the feature works on it before the user is called
@@ -18,42 +18,65 @@ wiring: [.github/workflows/preview-check.yml on deployment_status (planned)]
 
 The user's time is spent only on previews that work (pain `not-really-working`, setup 2026-11-09). Unit tests and
 `verify` can be green while the preview does not start, the frontend cannot reach the API, or the feature breaks in a
-real browser. The VPS is too small for a browser, so this check runs in CI against the preview itself (user, setup).
+real browser. The bb VPS is too small for a browser, so this check runs in CI against the preview itself (user,
+setup).
 
 ## Loop
 
-1. Railway deploys the PR's environment and reports a GitHub deployment. Its `deployment_status: success` starts the
-   workflow; the preview URL is in the event.
-2. `run <url>`: poll `<url>/healthz` until 200 (up to 3 minutes), then run the Playwright suite against the URL:
-   the smoke specs (the app loads, a user logs in, no console errors, no failed requests to the app's own origins),
-   and the specs of the feature, tagged with the ticket key.
-3. It uploads full-page screenshots of the built screens as an artifact, for gate 2.
-4. Red: the job fails with the failing spec, its screenshot and the Railway deploy logs of the environment. The
-   worker fixes it and pushes; Railway redeploys; the check runs again.
-5. The job is a required check on main, so a PR with a broken preview cannot merge.
+1. A PR is opened or updated. The job `preview-check` starts at once.
+2. If the PR changes nothing under `api/`, `web/` or `Dockerfile` (the watch patterns of the Railway service `app`),
+   Railway deploys no app preview: the job passes with `SKIP`.
+3. Otherwise it waits, up to 20 minutes, for Railway's commit status `brandy - app` on the PR's head commit.
+   - `failure`: the preview build or deploy failed. The job fails with Railway's log link and rebuilds the image with
+     `docker build` in the job, so the build error is in the job log, readable with `gh run view --log-failed`.
+   - `success`: it reads the app's URL from Railway's PR comment (fallback `https://app-brandy-pr-<N>.up.railway.app`).
+4. `loops/preview-check/run <url>`: `/healthz` until 200 (3 minutes), then the Playwright suite in `web/e2e` against
+   the URL: the smoke spec and every feature spec.
+5. It saves a full-page screenshot of `/`, the Playwright report and traces as the artifact
+   `preview-check-pr<N>`, for gate 2.
+
+No Railway token is used: the job reads only GitHub (statuses, comments), so a PR branch holds no Railway secret.
 
 ## Tools
 
-Planned: Playwright in GitHub Actions (`npx playwright install --with-deps chromium`), Railway CLI with a project
-token in GitHub secrets for the deploy logs. Versions are recorded when built.
+| Tool | Version validated | Where |
+|---|---|---|
+| Playwright (`@playwright/test`) | 1.65.0, Chromium headless shell 158 | `web/` devDependency; CI installs Chromium with `--with-deps`; on the Mac for validation |
+| pnpm | 12.18.0 | CI: `npm install -g pnpm@12`; the Mac was upgraded from 12.6.0, which rejects `packageManager: pnpm@12` |
+| Python | 3.9.6 (Mac), the runner's | `run` and `cases/stub_server.py`, standard library only |
+| Railway | — | commit status `brandy - app` and the bot's PR comment, set up by the harness agent on 2026-11-09 |
 
 ## Signal
 
-Planned: `preview-check: FAIL <spec> — <first error line>` plus the screenshot path, or
-`preview-check: FAIL healthz — no 200 from <url>/healthz in 180 s; deploy logs: …`.
+Exit 0: up and green. 1: up, but a spec failed. 3: down. 2: cannot run.
+
+```
+preview-check: FAIL e2e against <case> — how to fix: open the failing spec's trace in the playwright-report artifact (or reproduce with the app-probing skill), fix the app or the spec.
+    Error: console errors
+    …
+    +   "Uncaught TypeError: x is undefined",
+    …
+  1 failed
+    [chromium] › e2e/smoke.spec.ts:4:1 › / loads and shows the hello message from the API
+```
+
+```
+preview-check: DOWN <case>/healthz gave no 200 in 5 s (last: 503). How to fix: read the deploy logs of this environment; the app must start and answer /healthz.
+```
 
 ## Validation
 
-Planned cases: must-fire — a preview whose `/healthz` never answers; a preview where a smoke spec fails (a page with
-a console error). must-pass — a preview that answers and passes. Cases run against a local static server standing
-in for the preview, so they need no Railway.
+Cases are directories that `cases/stub_server.py` serves on a local port, standing in for a deployed app: `/`
+from the case's `index.html`, `/api/hello` like the API, and `/healthz` with the status in `healthz-status`.
+
+| Case | Stands for |
+|---|---|
+| must-fire/down | the app never answers 200 on `/healthz`: exit 3 |
+| must-fire/console-error | the page loads and shows the message, but throws in the console: exit 1 |
+| must-fire/no-hello | the page loads but the feature is missing (no `hello-message`): exit 1 |
+| must-pass/healthy | the page fetches `/api/hello` and shows it, no errors: exit 0 |
 
 ## Wiring
 
-Planned: `.github/workflows/preview-check.yml` on `deployment_status`; required check on main.
-
-Blocked on:
-- H3: a Railway token, and Railway PR environments switched on for the project (with a `dev` environment as their
-  base and a `proto` service for gate 1);
-- the app skeleton: `/healthz`, a Playwright config that takes the base URL from the environment, a fixture that
-  creates a user, and the first smoke spec. That is the skeleton ticket's work, not the harness's.
+`.github/workflows/preview-check.yml`, job `preview-check`, on every `pull_request`; a newer push cancels the older
+run of the same PR. To become a required check on main once it has passed on a real app preview.
