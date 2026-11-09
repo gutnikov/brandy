@@ -4,7 +4,7 @@ loops:
   - id: preview-check
     title: "The PR's preview starts and the feature works on it before the user is called"
     type: health-checks-smoke
-    status: built
+    status: validated
     trigger: [preview]
     validation: cases
   - id: preview-gate
@@ -17,10 +17,9 @@ loops:
   - id: prod-guard
     title: "Production is checked after every deploy of main and rolled back when it is down"
     type: health-checks-smoke
-    status: proposed
+    status: built
     trigger: [production]
     validation: cases
-    hitl: [H3]
   - id: prototype-gate
     title: "The user approves the UI prototype before the UI is built"
     type: plan-approval

@@ -30,9 +30,15 @@ ticket ─► new or changed screen, flow or layout? ─yes─► gate 1: protot
                                   └no──────────────────────────────────────┘
 ```
 
-Railway is not set up yet (as of 2026-11-09). There are no preview environments and no `proto` service, and the
-loops `preview-check` and `prod-guard` are only specified, not running. Until they exist, follow the steps marked
-"Until Railway is set up" in each gate.
+Railway (project `brandy`) runs two services: `app` (the API, which also serves the built web app; SQLite on a
+volume at `/data`) and `proto` (the prototype server for gate 1).
+
+- Production: `https://app-production-fd86.up.railway.app`, deployed from main after every merge that touches
+  `api/`, `web/` or `Dockerfile`.
+- Every PR that touches them gets its own environment `brandy-pr-<N>`, deleted when the PR closes: the app at
+  `https://app-brandy-pr-<N>.up.railway.app`, the prototypes at `https://proto-brandy-pr-<N>.up.railway.app/<name>`.
+  Railway's comment on the PR lists the exact URLs and the deploy status of each service.
+- The agents have no Railway access. The checks read Railway's results from GitHub.
 
 If the user picks "Drop the ticket" at either gate, the manager sets the ticket to `canceled` and closes the PR.
 
@@ -52,10 +58,8 @@ A change of text, a colour or a fix that keeps the layout skips the gate.
 3. The manager posts two things on the ticket:
    - the prototype's URL in the PR's preview environment: its `proto` service, `<proto url>/<name>`, where `<name>`
      is the file name without `.tsx`, for example `<proto url>/brn-12`
-   - a screenshot of the prototype
-
-   Until Railway is set up: the bb VPS has no browser, so there is no URL and no screenshot. Post the PR link and
-   say that the preview is not available yet; the user can open the prototype locally with `pnpm proto`.
+   - nothing else: the bb VPS has no browser, so there is no screenshot; the user opens the URL. Check first with
+     `curl -s -o /dev/null -w '%{http_code}' -H 'Accept: text/html' <url>` that it answers 200.
 4. The manager asks the user with AskUserQuestion: "Approve", "Changes needed" (the user writes them), "Drop the
    ticket".
 5. Changes needed: the worker revises the file, and the manager asks again and says what changed.
@@ -69,16 +73,12 @@ When the PR changes what the user sees or does in the app, the user tries it on 
 
 1. The manager waits until the PR's checks `verify` and `preview-check` are both green. The user is never called
    to a red or half-deployed preview.
-
-   Until Railway is set up: wait only for `verify`.
 2. The manager posts on the ticket:
    - the preview URL
-   - a user to log in with
+   - a user to log in with, once the app has logins
    - 3–5 steps for the user to try, taken from the ticket's acceptance criteria
-   - screenshots of the built screens next to the approved prototype
-
-   Until Railway is set up: post the PR link and what changed; there are no screenshots, because the bb VPS has no
-   browser.
+   - the approved prototype's URL, to compare with
+   - the link to the green `preview-check` run: its artifact holds a screenshot of the preview and the e2e report
 3. The manager sets the ticket to `in_review`.
 4. The manager asks the user with AskUserQuestion: "Merge", "Something is wrong" (the user writes what), "Drop the
    ticket".
@@ -99,8 +99,14 @@ checks are green; the manager says on the ticket what changed and links the gree
   delete one to get green.
 - A red check is the worker's to fix. A worker that cannot get it green reports BLOCKED to the manager, with the
   failing output.
-- `preview-check` and `prod-guard` are specified in `loops/preview-check/LOOP.md` and `loops/prod-guard/LOOP.md`
-  but are not running yet.
+- `preview-check` — on every PR that touches `api/`, `web/` or `Dockerfile`: waits for Railway to deploy the PR's
+  preview, then runs `/healthz` and the whole Playwright suite in `web/e2e` against it. A red `preview-check` is
+  the worker's to fix: `gh run view <run> --log-failed`; a failed Railway build is rebuilt in the job, so its error
+  is in that log.
+- `prod-guard` — after every production deploy: `/healthz` and the specs tagged `@smoke` against production. When
+  production is down it rolls back on its own; either way something is wrong it opens a GitHub issue.
+- e2e specs: a ticket that adds behaviour adds specs for it in `web/e2e`; they run on the PR's preview. Tag a spec
+  `@smoke` only if it only reads (no writes, no sign-ups): `@smoke` specs also run against production.
 
 ## Commands
 

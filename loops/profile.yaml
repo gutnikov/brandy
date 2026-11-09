@@ -23,21 +23,21 @@ stack:
 
 # Where a change goes after the agent writes it, besides edit, local, commit, task and continuous, which are always
 # there. Values from a loop's trigger: ci, scheduled, preview, staging, production.
-# All three were chosen by the user (H1, 2026-11-09). ci exists; preview and production are still to set up.
+# All three were chosen by the user (H1, 2026-11-09) and exist since 2026-11-09.
 stages: [ci, preview, production]
 stages_plan:
   ci: GitHub Actions on every PR; public repository since 2026-11-09; main protected, verify required (admins included)
-  preview: Railway PR Environments, one environment per PR
-  production: Railway deploys main after the merge
+  preview: Railway PR environments brandy-pr-<N> (focused: only services whose watch paths changed); services app and proto
+  production: Railway project brandy, service app (https://app-production-fd86.up.railway.app), deploys main after each merge; 'Wait for CI' off (it deadlocks with checks that wait for the deploy), main requires up-to-date PRs instead
 
 # What the agent can use from its own session, each checked with one real call.
 # Keys: ci, logs, errors, metrics, traces, browser, deploy. Value: what and how, e.g. "GitLab CI via glab".
 # Leave out what the agent cannot reach.
 tools:
   ci: "GitHub Actions via gh, logged in on the Mac and on the bb VPS; workflow verify"
-  deploy: "Railway CLI 5.71.0 on the Mac, logged in as the user (railway whoami); not on the bb VPS"
-  logs: "Railway CLI on the Mac (railway logs); no services yet"
-  browser: "agent-browser and Chrome DevTools MCP on the Mac only; not on the bb VPS, where tickets run"
+  deploy: "Railway CLI 5.71.0 on the Mac, logged in as the user; GraphQL works, but it may not create tokens or read GitHub data. Not on the bb VPS"
+  logs: "Railway API from the Mac (buildLogs, deploymentLogs); in CI only Railway's commit statuses and PR comments"
+  browser: "Playwright 1.65 + Chromium in GitHub Actions (preview-check, prod-guard) and on the Mac; agent-browser on the Mac. None on the bb VPS"
 
 # Promised by the user (H1, 2026-11-09), not reachable yet: each becomes a tools entry once one real call works.
 tools_pending:
@@ -46,12 +46,15 @@ tools_pending:
   dns_access: Cloudflare (API token)
 
 # Where the agents run. Tickets run as bb threads on the VPS (.bb/bb.yaml): 1 vCPU, 889 MB RAM, 2 GB swap
-# (1.8 GB used at setup), 6 GB free disk; go, pnpm and sqlite3 are not installed there. Heavy checks (browser,
+# (1.8 GB used at setup), 6 GB free disk; Go 1.26.5 and pnpm 12 were installed there at setup; no browser. Heavy checks (browser,
 # full run) go to GitHub Actions; on the VPS only light ones (H4, 2026-11-09).
 agent_runtime: bb VPS, small; heavy checks in CI
 
 # The checks the project already runs, and where, e.g. "golangci-lint: CI job lint". Reused, not rebuilt.
-existing_checks: []
+existing_checks:
+  - "verify: Stop hook (light) and GitHub Actions job verify (full), required on main"
+  - "preview-check: GitHub Actions on every PR (Railway preview + web/e2e)"
+  - "Railway healthcheck /healthz on the app service"
 
 # The failures the loops must catch first: breaks-build, not-really-working, conventions, escapes, security,
 # performance, compatibility, or the user's own words. Add the evidence when there is any.

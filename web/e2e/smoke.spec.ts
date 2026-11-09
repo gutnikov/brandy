@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 // The app loads and talks to its API: run it against the Vite dev server or a deployed preview (BASE_URL).
-test('/ loads and shows the hello message from the API', async ({ page, baseURL }) => {
+// Tagged @smoke: it also runs against production after every deploy (loop prod-guard), so it must only read.
+test('/ loads and shows the hello message from the API', { tag: '@smoke' }, async ({ page, baseURL }) => {
   const origin = new URL(baseURL ?? page.url()).origin;
   const consoleErrors: string[] = [];
   const failedRequests: string[] = [];

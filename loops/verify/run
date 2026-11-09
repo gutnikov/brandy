@@ -32,6 +32,7 @@ FIX = {
     "lint": "run the package's lint with --fix first, then fix the rest by hand",
     "test": "fix the code (or the test, only if the requirement changed); never delete or skip a failing test",
     "build": "fix the build error",
+    "node": "switch to the Node version the package asks for (nvm use 22), then run verify again",
 }
 
 
@@ -98,6 +99,13 @@ def web_checks(pkg, root, full):
     todo = [s for s in wanted if s in scripts]
     if not todo:
         return
+    need = re.match(r"\s*(?:>=|\^|~)?\s*v?(\d+)", (data.get("engines") or {}).get("node", ""))
+    if need:
+        have = subprocess.run(["node", "--version"], stdout=subprocess.PIPE, text=True).stdout.strip()
+        if int(re.match(r"v(\d+)", have).group(1)) < int(need.group(1)):
+            yield "node", rel, "Node %s is older than engines.node %r in %s/package.json" % (
+                have, data["engines"]["node"], rel)
+            return
     env = dict(os.environ, CI="true")  # test runners run once instead of watching
     deps = data.get("dependencies") or data.get("devDependencies")
     if deps and not (pkg / "node_modules").exists():
