@@ -9,6 +9,8 @@ server:
   where: remote
   route: ssh-tunnel
   ssh_host: see .bb/bb.local.yaml   # not committed: the VPS login and the tunnel command
+  # The tunnel is kept up on this Mac by launchd: ~/Library/LaunchAgents/local.bb-server-tunnel.plist
+  # (log: ~/Library/Logs/bb-server-tunnel.log; restart: launchctl kickstart -k gui/$(id -u)/local.bb-server-tunnel)
   url: http://127.0.0.1:38896   # BB_SERVER_URL for the bb CLI here
   # This Mac is an enrolled machine since the move; its ~/.bb holds machine credentials
   # that the server rejects (HTTP 401) over the tunnel. Run the CLI with an empty data dir:
