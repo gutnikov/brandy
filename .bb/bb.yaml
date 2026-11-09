@@ -16,6 +16,6 @@ server:
   # that the server rejects (HTTP 401) over the tunnel. Run the CLI with an empty data dir:
   cli_data_dir: ~/.bb-remote-cli  # BB_DATA_DIR for the bb CLI here
 
-project: proj_bz5z56zxdm   # bb project "vendy", source /root/projects/vendy on the VPS
-tracker: VEN               # bb Tasks project "vendy"
+project: proj_bz5z56zxdm   # bb project "brandy", source /root/projects/brandy on the VPS (renamed from vendy on 2026-11-09)
+tracker: BRN               # bb Tasks project "brandy" (prefix was VEN)
 preset: Manager            # claude-code, claude-opus-5-5, high, auto
