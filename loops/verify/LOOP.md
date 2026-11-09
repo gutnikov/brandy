@@ -16,12 +16,10 @@ wiring: [.claude/settings.json hooks.Stop -> loops/verify/stop-hook (light), .gi
 
 ## Open
 
-- **Main does not require the `verify` check yet.** For that, main needs branch protection that requires `verify`
-  with administrators included. The GitHub API refuses to set branch protection on this repository (403). Branch
-  protection becomes possible when the repository goes public. The user chose a public repository; the harness agent
-makes it public and turns protection on after the user's go under policy reason H2 (an action that sends something
-outside the project), which is pending. Until then, a worker can edit the hook
-  or the workflow in its own branch, so the CI run is not out of the agent's reach.
+- **Main requires `verify` since 2026-11-09.** The repository was recreated public with a cleaned history (H2, the
+  user's choice), and main is protected: the `verify` check is required, administrators included, no force pushes,
+  no deletion. A worker can still edit the hook or the workflow in its branch, but a PR whose `verify` is red cannot
+  merge, and nobody can push to main around it (a direct push was rejected, see Validation).
 - **How long light mode takes on the VPS on the real app is unknown.** There is no app code yet. The times under
   Validation come only from the validation cases.
 
@@ -53,7 +51,7 @@ chose this as the first failure to catch (pain `breaks-build`, and `conventions`
    PR, and the manager does not merge a PR whose `verify` is red.
 4. The agent pushes. On a clean machine, GitHub Actions runs the same `run` in full mode. Full mode adds the web
    `build` script, and it requires `golangci-lint` when a `.golangci.*` config exists. The job `verify` is the check
-   that main will require (see Open).
+   that main requires.
 
 Light mode exists because the bb VPS has 1 vCPU and 889 MB of RAM: `vite build` and the browser checks run only in
 CI (user, setup, 2026-11-09).
@@ -122,4 +120,4 @@ Wiring triggered for real on 2026-11-09:
   load project settings (`--setting-sources=user,project,local`), so every manager and worker runs it. The manager
   does not change code, so for it the hook exits at once.
 - `.github/workflows/verify.yml` → job `verify` on `pull_request` and on `push` to main; a newer push cancels the
-  older run of the same ref. Main will require this job once branch protection is on (see Open).
+  older run of the same ref. Main requires this job (branch protection, administrators included).

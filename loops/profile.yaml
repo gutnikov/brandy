@@ -23,10 +23,10 @@ stack:
 
 # Where a change goes after the agent writes it, besides edit, local, commit, task and continuous, which are always
 # there. Values from a loop's trigger: ci, scheduled, preview, staging, production.
-# All three are chosen by the user (H1, 2026-11-09) and do not exist yet: they are infrastructure to set up.
+# All three were chosen by the user (H1, 2026-11-09). ci exists; preview and production are still to set up.
 stages: [ci, preview, production]
 stages_plan:
-  ci: GitHub Actions on every PR; the repository goes public (H4, 2026-11-09) for free standard runners and branch protection
+  ci: GitHub Actions on every PR; public repository since 2026-11-09; main protected, verify required (admins included)
   preview: Railway PR Environments, one environment per PR
   production: Railway deploys main after the merge
 
@@ -34,13 +34,13 @@ stages_plan:
 # Keys: ci, logs, errors, metrics, traces, browser, deploy. Value: what and how, e.g. "GitLab CI via glab".
 # Leave out what the agent cannot reach.
 tools:
-  ci: "GitHub via gh, logged in on the Mac and on the bb VPS (gh repo view works); no workflows yet"
+  ci: "GitHub Actions via gh, logged in on the Mac and on the bb VPS; workflow verify"
+  deploy: "Railway CLI 5.71.0 on the Mac, logged in as the user (railway whoami); not on the bb VPS"
+  logs: "Railway CLI on the Mac (railway logs); no services yet"
   browser: "agent-browser and Chrome DevTools MCP on the Mac only; not on the bb VPS, where tickets run"
 
 # Promised by the user (H1, 2026-11-09), not reachable yet: each becomes a tools entry once one real call works.
 tools_pending:
-  deploy: Railway (token)
-  logs: Railway (token)
   errors: PostHog (personal API key)
   metrics: PostHog (personal API key)
   dns_access: Cloudflare (API token)
