@@ -101,3 +101,27 @@ checks are green; the manager says on the ticket what changed and links the gree
   failing output.
 - `preview-check` and `prod-guard` are specified in `loops/preview-check/LOOP.md` and `loops/prod-guard/LOOP.md`
   but are not running yet.
+
+## Commands
+
+The API is the Go module in `api/` and the web app the pnpm package in `web/`. Settings come from the environment;
+`.env.example` lists them with their defaults (`PORT=8080`, `DATABASE_PATH=./data/brandy.db`, `WEB_DIR=./web/dist`).
+
+- First time: `cd web && pnpm install`, and `npx playwright install chromium` for the e2e tests.
+- Run the app for development, in two terminals:
+  - API: `cd api && go run .` on `:8080`. The database goes to `api/data/brandy.db`; migrations apply at start.
+  - Web: `cd web && pnpm dev` on `http://localhost:5173`. Vite proxies `/api` and `/healthz` to `:8080`
+    (`API_URL` points it elsewhere).
+- Run it as in production, one process from the repository root: `(cd web && pnpm build) && go -C api build -o
+  ../bin/brandy . && ./bin/brandy`, then open `http://localhost:8080`. Or the image:
+  `docker build -t brandy . && docker run --rm -p 8080:8080 brandy`.
+- Prototypes: `cd web && pnpm proto` on `http://localhost:6060/` (see `web/prototypes/README.md`).
+- Tests:
+  - everything CI checks: `loops/verify/run .` (light), `VERIFY_MODE=full loops/verify/run .` (adds `vite build`;
+    golangci-lint when installed)
+  - Go: `cd api && go test ./...`; lint: `golangci-lint run` (v2, config `api/.golangci.yml`)
+  - web: `cd web && pnpm typecheck`, `pnpm lint`, `pnpm test` (Vitest, unit and component tests)
+  - e2e: start the app, then `cd web && pnpm test:e2e` (Playwright, Chromium, specs in `web/e2e/`). It runs against
+    `BASE_URL`, default `http://localhost:5173`; `BASE_URL=http://localhost:8080 pnpm test:e2e` for the built app.
+- Migrations: add `api/internal/db/migrations/NNNN_name.sql` with the next number. Each applies once, in a
+  transaction, recorded in `schema_migrations`.

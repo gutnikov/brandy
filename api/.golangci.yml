@@ -1,0 +1,9 @@
+version: "2"
+
+# golangci-lint v2: the standard linters (errcheck, govet, ineffassign, staticcheck, unused) plus revive.
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - staticcheck
+    - revive
