@@ -17,7 +17,7 @@ loops:
   - id: prod-guard
     title: "Production is checked after every deploy of main and rolled back when it is down"
     type: health-checks-smoke
-    status: built
+    status: validated
     trigger: [production]
     validation: cases
   - id: prototype-gate

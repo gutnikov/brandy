@@ -18,6 +18,9 @@ GOOD = {"SUCCESS", "SLEEPING", "REMOVED"}  # REMOVED: replaced by a newer deploy
 def gql(query, variables=None):
     req = urllib.request.Request(API, data=json.dumps({"query": query, "variables": variables or {}}).encode(),
                                  headers={"Content-Type": "application/json",
+                                          # Railway's API sits behind Cloudflare, which answers 403 to the default
+                                          # Python-urllib user agent.
+                                          "User-Agent": "brandy-prod-guard/1",
                                           "Project-Access-Token": os.environ["RAILWAY_TOKEN"]})
     with urllib.request.urlopen(req, timeout=30) as r:
         out = json.load(r)
