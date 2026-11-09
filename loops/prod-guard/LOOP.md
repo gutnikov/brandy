@@ -2,7 +2,7 @@
 id: prod-guard
 title: "Production is checked after every deploy of main and rolled back when it is down"
 type: health-checks-smoke
-status: built
+status: validated
 trigger: [production]
 run: ./run
 budget_seconds: 60
@@ -48,7 +48,7 @@ date with main (branch protection, strict) gives the same guarantee: what reache
 |---|---|---|
 | `loops/preview-check/run` | this repository | the health and e2e run, with `E2E_GREP=@smoke` |
 | Railway GraphQL API (`deployments`, `deploymentRollback`) | — | `railway.py`, header `Project-Access-Token` |
-| `RAILWAY_TOKEN` | — | a Railway project token for the production environment only, in the GitHub environment `production`, which only protected branches (main) can use. Not created yet: the Railway CLI may not create tokens ("Not Authorized"), so the user creates it (H3) |
+| `RAILWAY_TOKEN` | created 2026-11-09 | a Railway project token for the production environment only, in the GitHub environment `production`, which only protected branches (main) can use. The user created it (the Railway CLI may not create tokens: "Not Authorized"); it went from the clipboard to the secret without being shown |
 
 ## Signal
 
@@ -69,8 +69,17 @@ The same stand-in server as preview-check (`loops/preview-check/cases/stub_serve
 | must-fire/console-error | production is up, a smoke spec fails: exit 1, no rollback |
 | must-pass/healthy | production is fine: exit 0 |
 
-The rollback (`railway.py rollback`) is checked with `DRY_RUN=1` against the real API once the token exists; a real
-rollback has not been run.
+`loops.py validate prod-guard`: VALID, 3 cases, 3 runs each (2026-11-09, on the Mac).
+
+Wiring triggered for real on 2026-11-09:
+- Merge of PR #8 (`91f4df3`): Railway deployed production and set `brandy - app: success`; the run started by that
+  status (42631340298): `prod-guard: OK https://app-production-fd86.up.railway.app (healthz 200, 1 specs passed)`;
+  `rollback` and `report` skipped. The four runs started by other statuses were skipped by the filter.
+- `DRY_RUN=1 railway.py rollback` with the real production token: `rollback: 3a313459… (91f4df3) -> 699ff311…
+  (997e86a)`, the last good deployment of an earlier commit, skipping deployments Railway skipped. The first dry run
+  found a bug: Cloudflare in front of Railway's API answers 403 to Python's default user agent; `railway.py` now
+  sends its own.
+- Not run: a real rollback of production.
 
 ## Wiring
 
