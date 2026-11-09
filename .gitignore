@@ -1,2 +1,12 @@
 .spec-runs/
 .bb/bb.local.yaml
+
+# app
+.env
+data/
+api/data/
+node_modules/
+web/dist/
+web/playwright-report/
+web/test-results/
+bin/
