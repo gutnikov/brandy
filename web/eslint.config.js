@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   // Prototypes are sketches, never linted (see prototypes/README.md).
-  { ignores: ['dist', 'prototypes', 'playwright-report', 'test-results'] },
+  { ignores: ['dist', 'dist-server', 'prototypes', 'playwright-report', 'test-results'] },
   {
     files: ['**/*.{ts,tsx,js}'],
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],

@@ -41,15 +41,22 @@ func TestMigrateEmbeddedIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	conn := openTemp(t)
 
+	var all []int
+	for _, m := range mustLoad(t) {
+		all = append(all, m.Version)
+	}
+	if len(all) < 2 || all[0] != 1 {
+		t.Fatalf("embedded migrations %v, want 1 (schema_migrations) and the later ones", all)
+	}
 	applied, err := Migrate(ctx, conn, Migrations)
 	if err != nil {
 		t.Fatalf("first Migrate: %v", err)
 	}
-	if !slices.Equal(applied, []int{1}) {
-		t.Fatalf("first Migrate applied %v, want [1]", applied)
+	if !slices.Equal(applied, all) {
+		t.Fatalf("first Migrate applied %v, want %v", applied, all)
 	}
-	if got := recorded(t, conn); !slices.Equal(got, []int{1}) {
-		t.Fatalf("schema_migrations has %v, want [1]", got)
+	if got := recorded(t, conn); !slices.Equal(got, all) {
+		t.Fatalf("schema_migrations has %v, want %v", got, all)
 	}
 
 	applied, err = Migrate(ctx, conn, Migrations)
@@ -64,10 +71,7 @@ func TestMigrateEmbeddedIsIdempotent(t *testing.T) {
 func TestMigrateAppliesInVersionOrderAndOnlyNewOnes(t *testing.T) {
 	ctx := context.Background()
 	conn := openTemp(t)
-	base := fstest.MapFS{}
-	for _, m := range mustLoad(t) {
-		base[m.Name] = &fstest.MapFile{Data: []byte(m.SQL)}
-	}
+	base := firstMigration(t)
 	// 0010 needs the table 0002 creates, so they must run in version order.
 	base["0010_add_note.sql"] = &fstest.MapFile{Data: []byte(`ALTER TABLE things ADD COLUMN note TEXT;`)}
 	base["0002_things.sql"] = &fstest.MapFile{Data: []byte(`CREATE TABLE things (id INTEGER PRIMARY KEY);`)}
@@ -96,10 +100,7 @@ func TestMigrateAppliesInVersionOrderAndOnlyNewOnes(t *testing.T) {
 func TestMigrateFailureRollsBackAndIsNotRecorded(t *testing.T) {
 	ctx := context.Background()
 	conn := openTemp(t)
-	fsys := fstest.MapFS{}
-	for _, m := range mustLoad(t) {
-		fsys[m.Name] = &fstest.MapFile{Data: []byte(m.SQL)}
-	}
+	fsys := firstMigration(t)
 	fsys["0002_broken.sql"] = &fstest.MapFile{Data: []byte(
 		`CREATE TABLE half (id INTEGER PRIMARY KEY); THIS IS NOT SQL;`)}
 
@@ -140,4 +141,14 @@ func mustLoad(t *testing.T) []Migration {
 		t.Fatal(err)
 	}
 	return ms
+}
+
+// firstMigration is the embedded 0001 (it creates schema_migrations) alone, for tests that add their own.
+func firstMigration(t *testing.T) fstest.MapFS {
+	t.Helper()
+	m := mustLoad(t)[0]
+	if m.Version != 1 {
+		t.Fatalf("first embedded migration is %s, want version 1", m.Name)
+	}
+	return fstest.MapFS{m.Name: &fstest.MapFile{Data: []byte(m.SQL)}}
 }
