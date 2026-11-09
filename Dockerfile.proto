@@ -9,6 +9,7 @@ WORKDIR /src/web
 COPY web/package.json web/pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY web/ ./
-# Vite refuses requests for hosts it does not know; Railway serves the service on *.up.railway.app.
-ENV __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.up.railway.app
+# Vite refuses requests for hosts it does not know (HTTP 403): Railway serves the service on *.up.railway.app and
+# sends its healthcheck with the host healthcheck.railway.app.
+ENV __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=.up.railway.app,healthcheck.railway.app
 CMD ["sh", "-c", "exec pnpm proto --host 0.0.0.0 --port \"${PORT:-6060}\" --strictPort"]
