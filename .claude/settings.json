@@ -1,0 +1,18 @@
+{
+  "enabledPlugins": {
+    "spec@private-plugins": true,
+    "harness@private-plugins": true,
+    "playwright@private-plugins": true,
+    "app-probing@private-plugins": true,
+    "bb@private-plugins": true,
+    "ui-prototypes@private-plugins": true
+  },
+  "extraKnownMarketplaces": {
+    "private-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "gutnikov/my-claude-plugins"
+      }
+    }
+  }
+}
