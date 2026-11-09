@@ -2,7 +2,7 @@
 id: prod-guard
 title: "Production is checked after every deploy of main and rolled back when it is down"
 type: health-checks-smoke
-status: validated
+status: active
 trigger: [production]
 run: ./run
 budget_seconds: 60

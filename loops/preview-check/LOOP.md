@@ -2,7 +2,7 @@
 id: preview-check
 title: "The PR's preview starts and the feature works on it before the user is called"
 type: health-checks-smoke
-status: validated
+status: active
 trigger: [preview]
 run: ./run
 budget_seconds: 60
