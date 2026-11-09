@@ -1,0 +1,7 @@
+{
+  // Its own program, type-checked and linted on its own (package.json scripts typecheck and lint): one program
+  // for src/, server/ and e2e/ together needs more memory than ESLint gets on the bb VPS.
+  "extends": "../tsconfig.json",
+  "include": [".", "../playwright.config.ts"],
+  "exclude": []
+}

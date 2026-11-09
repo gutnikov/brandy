@@ -113,20 +113,35 @@ checks are green; the manager says on the ticket what changed and links the gree
 The API is the Go module in `api/` and the web app the pnpm package in `web/`. Settings come from the environment;
 `.env.example` lists them with their defaults (`PORT=8080`, `DATABASE_PATH=./data/brandy.db`, `WEB_DIR=./web/dist`).
 
-- First time: `cd web && pnpm install`, and `npx playwright install chromium` for the e2e tests.
+- First time: `cd web && pnpm install` (the API needs it too: it runs the auth sidecar from `web/`), and
+  `npx playwright install chromium` for the e2e tests.
 - Run the app for development, in two terminals:
   - API: `cd api && go run .` on `:8080`. The database goes to `api/data/brandy.db`; migrations apply at start.
+    It also starts the auth sidecar (Better Auth, `web/server/main.ts` run with tsx) on `127.0.0.1:8081`,
+    restarts it if it dies, and proxies `/api/auth/*` to it; `/healthz` fails while the sidecar is down.
   - Web: `cd web && pnpm dev` on `http://localhost:5173`. Vite proxies `/api` and `/healthz` to `:8080`
-    (`API_URL` points it elsewhere).
+    (`API_URL` points it elsewhere). Sign up at `http://localhost:5173/sign-up`.
+  - Auth by hand, against the API: `curl -c jar -H 'Origin: http://localhost:5173' -H 'content-type:
+    application/json' -d '{"name":"A","email":"a@example.com","password":"12345678"}'
+    localhost:8080/api/auth/sign-up/email`, then `curl -b jar localhost:8080/api/me` (401 when signed out).
 - Run it as in production, one process from the repository root: `(cd web && pnpm build) && go -C api build -o
-  ../bin/brandy . && ./bin/brandy`, then open `http://localhost:8080`. Or the image:
+  ../bin/brandy . && AUTH_SIDECAR=web/dist-server/main.mjs ./bin/brandy`, then open `http://localhost:8080`.
+  `pnpm build` makes the web app (`web/dist`) and the sidecar's bundle (`web/dist-server/main.mjs`). Or the image:
   `docker build -t brandy . && docker run --rm -p 8080:8080 brandy`.
+- Auth: Better Auth (email + password) runs in the sidecar; Go checks sessions itself (`api/internal/auth`: the
+  signed cookie, then the `session` table) and `GET /api/me` returns the signed-in user. The auth tables come from
+  the Go migration `0002_better_auth.sql`, not from Better Auth's CLI: after a Better Auth upgrade,
+  `web/server/schema.test.ts` fails if they no longer match, and the sidecar refuses to start on a schema it does
+  not expect. On Railway `BETTER_AUTH_SECRET` is required.
 - Prototypes: `cd web && pnpm proto` on `http://localhost:6060/` (see `web/prototypes/README.md`).
 - Tests:
   - everything CI checks: `loops/verify/run .` (light), `VERIFY_MODE=full loops/verify/run .` (adds `vite build`;
     golangci-lint when installed)
   - Go: `cd api && go test ./...`; lint: `golangci-lint run` (v2, config `api/.golangci.yml`)
-  - web: `cd web && pnpm typecheck`, `pnpm lint`, `pnpm test` (Vitest, unit and component tests)
+  - web: `cd web && pnpm typecheck`, `pnpm lint`, `pnpm test` (Vitest, unit and component tests). `src/`,
+    `server/` (the auth sidecar) and `e2e/` are separate TypeScript programs (a `tsconfig.json` each), and
+    `pnpm lint` (`web/lint.mjs`) runs ESLint on them in separate processes: one typed program for all of them
+    needs more memory than Node gives ESLint on the VPS.
   - e2e: start the app, then `cd web && pnpm test:e2e` (Playwright, Chromium, specs in `web/e2e/`). It runs against
     `BASE_URL`, default `http://localhost:5173`; `BASE_URL=http://localhost:8080 pnpm test:e2e` for the built app.
 - Migrations: add `api/internal/db/migrations/NNNN_name.sql` with the next number. Each applies once, in a

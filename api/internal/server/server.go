@@ -1,4 +1,5 @@
-// Package server holds the HTTP handlers: the API under /api, the health check, and the built web app.
+// Package server holds the HTTP handlers: the API under /api, the auth sidecar's endpoints under /api/auth, the
+// health check, and the built web app.
 package server
 
 import (
@@ -10,6 +11,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/gutnikov/brandy/api/internal/auth"
 )
 
 // Pinger is what the health check needs from the database.
@@ -23,15 +26,38 @@ type Config struct {
 	Logger *slog.Logger
 	// Web is the built web app (index.html and its assets); nil serves no web app.
 	Web fs.FS
+	// Sessions resolves the signed-in user for the API's own endpoints; nil: nobody is signed in.
+	Sessions *auth.Sessions
+	// Auth serves /api/auth/*: the proxy to the auth sidecar (AuthProxy); nil answers 503.
+	Auth http.Handler
+	// AuthCheck says whether the auth sidecar answers; /healthz fails when it does not. nil: no check.
+	AuthCheck func(context.Context) error
 }
 
 // New returns the application's HTTP handler.
 func New(cfg Config) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", healthz(cfg.DB, cfg.Logger))
+	mux.HandleFunc("GET /healthz", healthz(cfg.DB, cfg.AuthCheck, cfg.Logger))
 	mux.HandleFunc("GET /api/hello", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"message": "hello"})
 	})
+	authProxy := cfg.Auth
+	if authProxy == nil {
+		authProxy = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "auth is not available"})
+		})
+	}
+	mux.Handle("/api/auth/", authProxy)
+	// signedIn wraps the API's own endpoints that need a signed-in user: 401 otherwise.
+	signedIn := func(h http.HandlerFunc) http.Handler {
+		if cfg.Sessions == nil {
+			return auth.RequireUser(h)
+		}
+		return cfg.Sessions.Middleware(auth.RequireUser(h))
+	}
+	mux.Handle("GET /api/me", signedIn(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, auth.UserFrom(r.Context()))
+	}))
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "not found"})
 	})
@@ -39,14 +65,21 @@ func New(cfg Config) http.Handler {
 	return logRequests(cfg.Logger, mux)
 }
 
-func healthz(db Pinger, log *slog.Logger) http.HandlerFunc {
+func healthz(db Pinger, authCheck func(context.Context) error, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
 		if err := db.PingContext(ctx); err != nil {
 			log.ErrorContext(ctx, "healthz: database ping failed", "err", err)
-			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable", "failed": "database"})
 			return
+		}
+		if authCheck != nil {
+			if err := authCheck(ctx); err != nil {
+				log.ErrorContext(ctx, "healthz: auth sidecar check failed", "err", err)
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable", "failed": "auth"})
+				return
+			}
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}
