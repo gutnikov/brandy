@@ -4,7 +4,7 @@ loops:
   - id: preview-check
     title: "The PR's preview starts and the feature works on it before the user is called"
     type: health-checks-smoke
-    status: validated
+    status: active
     trigger: [preview]
     validation: cases
   - id: preview-gate
@@ -17,7 +17,7 @@ loops:
   - id: prod-guard
     title: "Production is checked after every deploy of main and rolled back when it is down"
     type: health-checks-smoke
-    status: validated
+    status: active
     trigger: [production]
     validation: cases
   - id: prototype-gate
