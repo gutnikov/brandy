@@ -39,7 +39,7 @@ chose this as the first failure to catch (pain `breaks-build`, and `conventions`
    `.github/` do not count.
 2. Otherwise it runs `loops/verify/run .` in light mode. `run` finds every Go module (`go.mod`) and every pnpm
    package (`package.json`; a pnpm workspace counts as one package, its root), and runs:
-   - Go: `gofmt -l`, `go build ./...`, `go vet ./...`, `go test -count=1 -vet=off ./...`, and `golangci-lint run`
+   - Go: `gofmt -l`, `go build -o /dev/null ./...`, `go vet ./...`, `go test -count=1 -vet=off ./...`, and `golangci-lint run`
      when a `.golangci.*` config exists. A failed build stops the module's checks.
    - web: the package's scripts `typecheck`, `lint` and `test`; in full mode also `build`. A script the package does
      not have is skipped. Dependencies are installed first if `node_modules` is missing.

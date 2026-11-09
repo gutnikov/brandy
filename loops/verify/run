@@ -71,7 +71,7 @@ def go_checks(mod, root, full):
         if code or bad:
             yield "gofmt", rel, "\n".join("%s/%s:1: not gofmt-formatted" % (rel, b) for b in bad) or out
     # build first: a compile error then shows once; tests skip vet, which has its own step
-    for step, cmd in (("go build", ["go", "build", "./..."]),
+    for step, cmd in (("go build", ["go", "build", "-o", os.devnull, "./..."]),  # leave no binary behind
                       ("go vet", ["go", "vet", "./..."]),
                       ("go test", ["go", "test", "-count=1", "-vet=off", "./..."])):
         code, out = run(step, cmd, mod)
