@@ -71,9 +71,10 @@ jobs:
       RAILWAY_ENVIRONMENT_ID: d61d98df-d69f-426e-b166-a97a1ce20378
       RAILWAY_SERVICE_ID: 040325ef-6b8d-42dd-a916-0a0a53a2a9ee
     steps:
+      # The rollback tool comes from main as it is now (a status event checks out the default branch), never from
+      # the commit named in the event.
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.sha }}
           sparse-checkout: loops/prod-guard
       - name: Roll back (production is down)
         id: rollback
