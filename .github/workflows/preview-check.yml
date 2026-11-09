@@ -1,0 +1,92 @@
+# Loop preview-check (loops/preview-check/LOOP.md): the PR's Railway preview starts and works in a real browser,
+# before anyone is called to look at it. Uses no Railway token: it waits for Railway's commit status
+# "brandy - app" and reads the preview URL from Railway's PR comment.
+name: preview-check
+on:
+  pull_request:
+concurrency:
+  group: preview-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+  statuses: read
+  pull-requests: read
+  issues: read
+jobs:
+  preview-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      # The same watch patterns as the Railway service "app": a PR outside them gets no app preview.
+      - name: Does this PR deploy the app?
+        id: affected
+        run: |
+          if git diff --name-only "${{ github.event.pull_request.base.sha }}" "$SHA" | grep -qE '^(api/|web/|Dockerfile$)'; then
+            echo "deploys=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "preview-check: SKIP — this PR changes nothing under api/, web/ or Dockerfile, so Railway deploys no app preview."
+            echo "deploys=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Wait for Railway to deploy this commit
+        id: railway
+        if: steps.affected.outputs.deploys == 'true'
+        run: |
+          for i in $(seq 1 60); do
+            st=$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/status" --jq '.statuses[] | select(.context=="brandy - app") | "\(.state) \(.target_url)"' | head -1)
+            case "$st" in
+              success*) break ;;
+              failure*|error*)
+                echo "preview-check: FAIL railway — the preview build or deploy of $SHA failed. Railway logs: ${st#* }"
+                echo "How to fix: the next step rebuilds the image here so the error is in this job's log; fix it and push."
+                echo "result=build-failed" >> "$GITHUB_OUTPUT"; exit 1 ;;
+            esac
+            sleep 20
+          done
+          [ "${st%% *}" = success ] || { echo "preview-check: FAIL railway — no status \"brandy - app\" for $SHA after 20 min"; exit 1; }
+          body=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --jq '[.[] | select(.user.login=="railway-app[bot]")] | last | .body')
+          url=$(printf '%s\n' "$body" | grep -E '^\|[[:space:]]*app[[:space:]]*\|' | grep -oE 'https://[a-z0-9.-]+\.up\.railway\.app' | head -1)
+          echo "url=${url:-https://app-brandy-pr-$PR.up.railway.app}" >> "$GITHUB_OUTPUT"
+      - name: Rebuild the image to show the build error
+        if: failure() && steps.railway.outputs.result == 'build-failed'
+        run: docker build -f Dockerfile .
+      - uses: actions/setup-node@v5
+        if: steps.affected.outputs.deploys == 'true'
+        with:
+          node-version: 22
+      - name: Install the web app and Chromium
+        if: steps.affected.outputs.deploys == 'true'
+        working-directory: web
+        run: |
+          npm install -g pnpm@12
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+      - name: preview-check
+        if: steps.affected.outputs.deploys == 'true'
+        env:
+          URL: ${{ steps.railway.outputs.url }}
+        run: loops/preview-check/run "$URL"
+      - name: Screenshots for gate 2
+        if: always() && steps.affected.outputs.deploys == 'true' && steps.railway.outputs.url != ''
+        working-directory: web
+        env:
+          URL: ${{ steps.railway.outputs.url }}
+        run: |
+          mkdir -p ../preview-screenshots
+          pnpm exec playwright screenshot --full-page --wait-for-timeout 2000 "$URL/" ../preview-screenshots/root.png
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.affected.outputs.deploys == 'true'
+        with:
+          name: preview-check-pr${{ github.event.pull_request.number }}
+          path: |
+            preview-screenshots/
+            web/playwright-report/
+            web/test-results/
+          if-no-files-found: ignore
