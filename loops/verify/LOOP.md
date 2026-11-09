@@ -39,8 +39,8 @@ chose this as the first failure to catch (pain `breaks-build`, and `conventions`
    package (`package.json`; a pnpm workspace counts as one package, its root), and runs:
    - Go: `gofmt -l`, `go build -o /dev/null ./...`, `go vet ./...`, `go test -count=1 -vet=off ./...`, and `golangci-lint run`
      when a `.golangci.*` config exists. A failed build stops the module's checks.
-   - web: the package's scripts `typecheck`, `lint` and `test`; in full mode also `build`. A script the package does
-     not have is skipped. Dependencies are installed first if `node_modules` is missing.
+   - web: first, the installed Node must satisfy the package's `engines.node` (brandy: `>=22`); then the package's
+     scripts `typecheck`, `lint` and `test`; in full mode also `build`. A script the package does not have is skipped. Dependencies are installed first if `node_modules` is missing.
 
    `run` does not check:
    - `loops/` directly under the checked directory;
@@ -62,7 +62,8 @@ CI (user, setup, 2026-11-09).
 |---|---|---|
 | Python | 3.14.4 (VPS), 3.9.6 (Mac) | system; `run` needs only the standard library |
 | Go (`go`, `gofmt`) | 1.26.5 | VPS: `/usr/local/go` from go.dev, linked into `/usr/local/bin` (2026-11-09); CI: `actions/setup-go@v6`, `1.26.x` |
-| pnpm | 12.18.0 (VPS), 12.6.0 (Mac) | VPS and CI: `npm install -g pnpm@12` |
+| Node | 22 (VPS 22.22, CI `actions/setup-node@v5` 22) | `web/package.json` `engines.node >=22`; the Mac's default Node 20 fails the web tests (undici 8) |
+| pnpm | 12.18.0 (VPS, Mac) | VPS and CI: `npm install -g pnpm@12` |
 | golangci-lint | not used yet | CI installs v2 when a `.golangci.*` config appears; on the VPS it is skipped if missing |
 
 `pnpm run` is called with `--config.verify-deps-before-run=false`: pnpm 12 otherwise installs before a run, and the
@@ -98,6 +99,7 @@ verify: 1 check(s) failed. Rerun: loops/verify/run loops/verify/cases/must-fire/
 | must-fire/go-test-fails | compiles, a unit test fails |
 | must-fire/go-not-formatted | compiles and passes, but is not `gofmt`-formatted |
 | must-fire/web-script-fails | a web package whose `typecheck` script fails (stands for `tsc`, `eslint` and the test runner: `run` checks the script's exit code, not the tool) |
+| must-fire/web-node-too-old | a web package whose `engines.node` the installed Node does not meet: a clear "switch Node" message instead of a crash inside a dependency |
 | must-pass/empty | no `go.mod` and no `package.json`: the repository at setup; the hook must not block anything |
 | must-pass/go-ok | a Go module that builds, vets, is formatted and passes its tests |
 | must-pass/web-ok | a web package whose scripts pass; its `build` script fails and must not run in light mode |

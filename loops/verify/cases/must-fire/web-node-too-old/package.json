@@ -1,0 +1,6 @@
+{
+  "name": "web-node-too-old",
+  "private": true,
+  "engines": { "node": ">=99" },
+  "scripts": { "test": "node -e \"process.exit(0)\"" }
+}

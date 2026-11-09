@@ -2,7 +2,7 @@
 id: preview-check
 title: "The PR's preview starts and the feature works on it before the user is called"
 type: health-checks-smoke
-status: built
+status: validated
 trigger: [preview]
 run: ./run
 budget_seconds: 60
@@ -31,7 +31,8 @@ setup).
      `docker build` in the job, so the build error is in the job log, readable with `gh run view --log-failed`.
    - `success`: it reads the app's URL from Railway's PR comment (fallback `https://app-brandy-pr-<N>.up.railway.app`).
 4. `loops/preview-check/run <url>`: `/healthz` until 200 (3 minutes), then the Playwright suite in `web/e2e` against
-   the URL: the smoke spec and every feature spec.
+   the URL: the smoke spec and every feature spec (only the specs matching `E2E_GREP` when it is set; prod-guard sets
+   `@smoke`).
 5. It saves a full-page screenshot of `/`, the Playwright report and traces as the artifact
    `preview-check-pr<N>`, for gate 2.
 
@@ -76,7 +77,18 @@ from the case's `index.html`, `/api/hello` like the API, and `/healthz` with the
 | must-fire/no-hello | the page loads but the feature is missing (no `hello-message`): exit 1 |
 | must-pass/healthy | the page fetches `/api/hello` and shows it, no errors: exit 0 |
 
+`loops.py validate preview-check`: VALID, 4 cases, 3 runs each (2026-11-09, on the Mac).
+
+Wiring triggered for real on 2026-11-09:
+- PR #6 (only `loops/` and `.github/`): `SKIP`, green.
+- Scratch PR #7 (a comment in `web/src/Home.tsx`): Railway deployed `app-brandy-pr-7`; `preview-check: OK
+  https://app-brandy-pr-7.up.railway.app (healthz 200, 1 specs passed)` in 45 s, screenshot in the artifact
+  (run 42629891597). Then a commit that logs a console error: red, `Error: console errors` with the message
+  (run 42630248355). PR closed unmerged.
+- The first run on #7 found a deadlock: the PR environment inherited Railway's "Wait for CI", so the app waited for
+  `preview-check` while `preview-check` waited for the app. "Wait for CI" is now off everywhere (see prod-guard).
+
 ## Wiring
 
 `.github/workflows/preview-check.yml`, job `preview-check`, on every `pull_request`; a newer push cancels the older
-run of the same PR. To become a required check on main once it has passed on a real app preview.
+run of the same PR. A required check on main since 2026-11-09 (with `verify`).

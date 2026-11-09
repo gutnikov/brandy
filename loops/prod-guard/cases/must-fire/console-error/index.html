@@ -1,0 +1,2 @@
+<!doctype html><html><head><title>brandy</title><link rel="icon" href="data:,"></head><body><p data-testid="hello-message"></p>
+<script>fetch("/api/hello").then(r => r.json()).then(d => { document.querySelector("[data-testid=hello-message]").textContent = d.message; });console.error("Uncaught TypeError: x is undefined");</script></body></html>

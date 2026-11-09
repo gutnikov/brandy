@@ -5,7 +5,8 @@ Usage: loops/preview-check/run <url>    a deployed app, e.g. https://app-brandy-
        loops/preview-check/run <dir>    a validation case: <dir> is served by cases/stub_server.py on a local port
 
 1. GET <url>/healthz until it answers 200 (PREVIEW_WAIT seconds, default 180; 5 for a local case).
-2. The web app's Playwright suite (web/e2e) against <url>: the smoke spec and every feature spec.
+2. The web app's Playwright suite (web/e2e) against <url>: the smoke spec and every feature spec; only the specs
+   matching E2E_GREP when it is set (prod-guard sets @smoke).
 Exit 0: up and green. 1: up, but a spec failed. 3: down (no 200 from /healthz). 2: cannot run.
 Needs: web/node_modules installed and Playwright's Chromium (pnpm exec playwright install chromium).
 """
@@ -62,8 +63,9 @@ def main():
                 sys.exit(3)
             time.sleep(3)
         env = dict(os.environ, BASE_URL=url, CI=os.environ.get("CI", "true"))
+        grep = ["--grep", os.environ["E2E_GREP"]] if os.environ.get("E2E_GREP") else []
         p = subprocess.run(["pnpm", "--config.verify-deps-before-run=false", "exec", "playwright", "test",
-                            "--reporter=line"], cwd=WEB, env=env, stdout=subprocess.PIPE,
+                            "--reporter=line"] + grep, cwd=WEB, env=env, stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT, text=True)
         out = re.sub(r"\(\d+(\.\d+)?m?s\)", "(<t>)", p.stdout).replace(url, shown)
         if p.returncode != 0:
