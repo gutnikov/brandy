@@ -7,6 +7,16 @@ not add a theme or visual styling unless the ticket asks for it.
 The bb setup of this repository is maintained by the bb agent; see `.bb/bb.yaml`. The agent loops (the checks the
 agents run on their own work) are maintained by the harness agent; see `loops/` and `loops/index.yaml`.
 
+## Where the agents run
+
+bb runs every ticket's manager and workers on one small VPS: 1 vCPU, 889 MB RAM, 2 GB swap, a few GB of free disk.
+Other threads and the bb server share it, and an out-of-memory kill takes them all down. On the VPS:
+
+- Run builds, linters and unit tests only: `loops/verify/run .` and the commands it runs.
+- Do not run a browser, Playwright, `docker build` or `docker run` there, and do not install system packages.
+  Browser checks and image builds run in CI and on the Railway previews.
+- Stop the dev servers you start, by PID, when you are done with them.
+
 ## How a ticket is delivered
 
 Tickets run on their own from start to production. The user is called in at two points only: the UI prototype
