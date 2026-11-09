@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchHello } from './api.ts';
 
 export function Home() {
+  console.error('scratch: a broken page for the preview-check red-path test');
   const hello = useQuery({ queryKey: ['hello'], queryFn: fetchHello });
 
   return (
