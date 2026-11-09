@@ -48,7 +48,7 @@ tools_pending:
 # Where the agents run. Tickets run as bb threads on the VPS (.bb/bb.yaml): 1 vCPU, 889 MB RAM, 2 GB swap
 # (1.8 GB used at setup), 6 GB free disk; Go 1.26.5 and pnpm 12 were installed there at setup; no browser. Heavy checks (browser,
 # full run) go to GitHub Actions; on the VPS only light ones (H4, 2026-11-09).
-agent_runtime: bb VPS, small; heavy checks in CI
+agent_runtime: bb VPS, small; heavy checks in CI. Seen on BRN-5: ESLint ran out of heap there and was split per program (web/lint.mjs); golangci-lint is not installed there, so its findings first show in CI
 
 # The checks the project already runs, and where, e.g. "golangci-lint: CI job lint". Reused, not rebuilt.
 existing_checks:

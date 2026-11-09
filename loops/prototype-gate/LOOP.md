@@ -2,7 +2,7 @@
 id: prototype-gate
 title: "The user approves the UI prototype before the UI is built"
 type: plan-approval
-status: built
+status: active
 trigger: [task]
 run: none
 budget_seconds: 0
@@ -43,10 +43,9 @@ approves a reference that the later checks and gate 2 compare against.
 |---|---|---|
 | `ui-prototypes` skill (plugin `ui-prototypes@private-plugins`) | 0.1.0 | installed on the bb VPS for root, 2026-11-09 |
 | bb Tasks comments and AskUserQuestion in the manager thread | bb 0.48.1 | the user answers with a tap in the bb app |
-| Railway PR environment, service `proto` | — | not set up yet: comes with `preview-check` (Railway token, H3) |
+| Railway PR environment, service `proto` | `Dockerfile.proto` | every PR touching `web/` gets `proto-brandy-pr-<N>`; no healthcheck (Railway rejects the runner's paths) |
 
-Until the Railway preview exists there is no URL and no screenshot: the bb VPS has no browser. The manager posts the
-PR link and says the preview is not available yet; the user can open the prototype locally with `pnpm proto`.
+The bb VPS has no browser, so the manager posts the URL without a screenshot after checking that it answers 200.
 
 ## Signal
 
@@ -57,8 +56,13 @@ The ticket comments are the record; these calls are not copied to `loops/hitl-lo
 
 Manual: the signal is a person's judgement, so there are no cases. What is checked instead: the first ticket that
 changes UI goes through the gate (prototype file, URL or screenshot on the ticket, the question, the approval
-comment), and a ticket that only changes the backend does not. The loop becomes `validated` after both are seen on
-real tickets.
+comment), and a ticket that only changes the backend does not.
+
+Seen on BRN-5 (sign-up and sign-in, 2026-11-09): the worker wrote `web/prototypes/brn-5.tsx` (screens, states and
+data that break layouts, switchable on the page); Railway served it at `https://proto-brandy-pr-11.up.railway.app/brn-5`
+(200, rendered, no console errors); the manager posted the URL and asked; the user approved; the manager commented
+`Prototype approved: 04563a2…`, and the built screens were compared with it at gate 2. Not seen yet: a backend-only
+ticket skipping the gate (BRN-4, the skeleton, was excluded by its text).
 
 ## Wiring
 

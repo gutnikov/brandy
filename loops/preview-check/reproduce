@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# preview-check, when Railway reports a failed preview deploy: build the app image and start it here, so the
+# error is in this job's log (the agents cannot read Railway's logs). Always exits 1: the check has already failed.
+# The container gets the variables of .env.example that the Dockerfile does not set itself (dev-only values, such
+# as a dev secret), so a variable missing on Railway shows as "starts here, not on Railway".
+set -u
+cd "$(dirname "$0")/../.."
+if ! docker build -t preview-repro -f Dockerfile . > /tmp/repro-build.log 2>&1; then
+  tail -60 /tmp/repro-build.log
+  echo "preview-check: the image does not build. How to fix: the build error is above."
+  exit 1
+fi
+args=()
+while IFS='=' read -r k v; do
+  case "$k" in ''|\#*) continue ;; esac
+  grep -qE "^[[:space:]]*(ENV[[:space:]]+)?$k=" Dockerfile || args+=(-e "$k=$v")
+done < .env.example
+cid=$(docker run -d -e PORT=8080 -p 8080:8080 "${args[@]}" preview-repro)
+code=none
+for _ in $(seq 1 30); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' -m 3 http://127.0.0.1:8080/healthz)
+  [ "$code" = 200 ] && break
+  sleep 2
+done
+echo "--- container log (last 80 lines) ---"
+docker logs --tail 80 "$cid" 2>&1
+docker rm -f "$cid" > /dev/null
+if [ "$code" = 200 ]; then
+  echo "preview-check: the image builds and answers /healthz here, but its Railway deploy failed. Most likely a Railway"
+  echo "variable is missing or wrong (here it ran with .env.example's dev values). How to fix: tell the manager the"
+  echo "variable's name; the user asks the harness agent, who sets it in Railway."
+else
+  echo "preview-check: the image builds but does not answer /healthz here either (last: $code). How to fix: the"
+  echo "container log above says why."
+fi
+exit 1

@@ -10,7 +10,7 @@ loops:
   - id: preview-gate
     title: "The user tries the built feature on its preview before the merge"
     type: result-demo
-    status: built
+    status: active
     trigger: [task, preview]
     validation: manual
     hitl: [H1]
@@ -23,7 +23,7 @@ loops:
   - id: prototype-gate
     title: "The user approves the UI prototype before the UI is built"
     type: plan-approval
-    status: built
+    status: active
     trigger: [task]
     validation: manual
     hitl: [H5]
